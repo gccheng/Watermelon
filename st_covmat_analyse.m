@@ -233,12 +233,12 @@ function [ distance xbin nbin confidence] = ...
         for jj=1:szDist
             tmpInd = find(ccXX_p>dist(jj),1);
             if (~isempty(tmpInd)) && (tmpInd(1)>1)
-                if ccNN_p(tmpInd(1))>0
-                    cf = cf +log(ccNN_p(tmpInd(1)));
-                else
-                    cf = cf + 0;
-                end
-                fprintf('Not empty. distance=%f\n', dist(jj));
+%                 if ccNN_p(tmpInd(1))>0
+%                     cf = cf +ccNN_p(tmpInd(1));
+%                 else
+%                     cf = cf + 0;
+%                 end
+                  cf = cf + ccNN_p(tmpInd(1));
             else % For distances which didn't appear before
                 x1 = 0.0; x2 = 0.0;
                 if dist(jj)<xbin(1)
@@ -251,15 +251,15 @@ function [ distance xbin nbin confidence] = ...
                 Eps1 = abs(x1-mu_dist);
                 Eps2 = abs(x2-mu_dist);
                 tmpProb = 1.0/2*(sigma_dist^2)*(1/(Eps1^2)-1/(Eps2^2));
-                if tmpProb>0
-                    cf = cf + log(tmpProb);
-                else
-                    cf = cf + 0;
-                end
-                fprintf('Empty. distance=%f\n', dist(jj));
+%                 if tmpProb>0
+%                     cf = cf + tmpProb;
+%                 else
+%                     cf = cf + 0;
+%                 end
+                  cf = cf + tmpProb;
             end            
         end
-        cf = cf./szDist; 
+        cf = (cf./szDist - mean(ccNN_p,2))./std(ccNN_p); 
     end
     
     function [mu,sigma] = getStat(xbin, nbin)
