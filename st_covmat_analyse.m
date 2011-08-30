@@ -148,7 +148,7 @@ function [ distance xbin nbin confidence] = ...
                 tempConf = getConfidence();
                 cc = [cc tempConf]; confidence = cc;
                 plot(handles.conf, 1:size(cc,2), cc);
-                xlabel(handles.conf, 'Window Frame #'); ylabel(handles.conf, 'Normality Confidence');
+                xlabel(handles.conf, 'Window Frame #'); ylabel(handles.conf, 'Occurrence Probability');
             end
 
             drawnow;
@@ -226,28 +226,49 @@ function [ distance xbin nbin confidence] = ...
         %ccNN_p = ccNN(ccNN>1);
         %ccXX_p = ccXX(ccNN>1);
         ccXX_p = ccXX;
+        deltaX = xbin(2)-xbin(1);
         
-        avgProb = sum((ccNN_p./100).*ccNN_p, 2);
-        covProb = std(ccNN_p);
+        [mu_dist sigma_dist] = getStat(xbin, nbin);
+        
         for jj=1:szDist
             tmpInd = find(ccXX_p>dist(jj),1);
-            if ~isempty(tmpInd)
-                if tmpInd(1)>1
-                    cf = cf + ccNN_p(tmpInd(1))-avgProb;
+            if (~isempty(tmpInd)) && (tmpInd(1)>1)
+                if ccNN_p(tmpInd(1))>0
+                    cf = cf +log(ccNN_p(tmpInd(1)));
                 else
-                    cf = cf + 0 - avgProb;
+                    cf = cf + 0;
                 end
-                %cf = cf.*exp(-cf/10000);
-            end
+                fprintf('Not empty. distance=%f\n', dist(jj));
+            else % For distances which didn't appear before
+                x1 = 0.0; x2 = 0.0;
+                if dist(jj)<xbin(1)
+                    x1 = xbin(1) - deltaX.*(floor((xbin(1)-dist(jj))/deltaX)+1);
+                    x2 = xbin(1) - deltaX.* floor((xbin(1)-dist(jj))/deltaX);
+                elseif dist(jj)>xbin(end)
+                    x1 = xbin(end) + deltaX.* floor((dist(jj)-xbin(end))/deltaX);
+                    x2 = xbin(end) + deltaX.*(floor((dist(jj)-xbin(end))/deltaX)+1);
+                end
+                Eps1 = abs(x1-mu_dist);
+                Eps2 = abs(x2-mu_dist);
+                tmpProb = 1.0/2*(sigma_dist^2)*(1/(Eps1^2)-1/(Eps2^2));
+                if tmpProb>0
+                    cf = cf + log(tmpProb);
+                else
+                    cf = cf + 0;
+                end
+                fprintf('Empty. distance=%f\n', dist(jj));
+            end            
         end
-        cf = cf./szDist; cf = cf./(2*covProb);
+        cf = cf./szDist; 
     end
     
     function [mu,sigma] = getStat(xbin, nbin)
         xMid = xbin-ones(1,size(xbin,2))*(xbin(2)-xbin(1));
         dataStat = [];
-        for i=1:size(xbin,2)
-            dataStat = [dataStat ones(1,nbin(i))*xMid(i)];
+        for iStat=1:size(xbin,2)
+            if nbin(iStat)>0
+                dataStat = [dataStat ones(1,nbin(iStat))*xMid(iStat)];
+            end
         end
         mu = mean(dataStat,2);
         sigma = std(dataStat);
