@@ -194,7 +194,7 @@ else
     conf = get(handles.conf, 'UserData');
     rstPrev = get(handles.hist, 'UserData');
     [ distance xbin nbin confidence] = st_covmat_analyse(videofile, duration,...
-                    filtersize, handles, rstPrev.dist, rstPrev.x, rstPrev.n, conf);
+                    filtersize, handles, conf, rstPrev.dist, rstPrev.x, rstPrev.n);
     % Save updated data
     rstStAnalyse.dist = distance;
     rstStAnalyse.x = xbin;

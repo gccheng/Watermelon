@@ -1,10 +1,10 @@
 function [ distance xbin nbin confidence] = ...
     st_covmat_analyse(videofile, duration, filtersize, handles, conf, d, x, n)
 
-    distance = []; xbin =[]; nbin = []; confidence = [];
+    distance = []; xbin =[]; nbin = []; confidence = []; occurProb = [];
     xx = x; nn = n; dd = d; cc = conf;
     posImagShow = get(handles.imag, 'Position');
-
+    
     % Video information
     video = mmreader(videofile);
     read(video,inf);
@@ -15,7 +15,7 @@ function [ distance xbin nbin confidence] = ...
 
     % Parameter setting
     szDirevative = 5;   szWeightFunc = 11;          % Dimension of video
-    szSampledDataSize = szWeightFunc*4+1;           % Sample Image Size (Temporal)
+    szSampledDataSize = szWeightFunc*2+1;           % Sample Image Size (Temporal)
     szHalfWindow = floor(szSampledDataSize/2);
     nLength = szWeightFunc; nFrames=nLength;        % Total length of video 
     posImg=get(handles.posi,'Value'); 
@@ -144,11 +144,24 @@ function [ distance xbin nbin confidence] = ...
             end
             
             % Computer and draw confidence if detecing is checked
-            if (bDete==1) && (size(dd,2)>500)
+            if (bDete==1)
                 tempConf = getConfidence();
                 cc = [cc tempConf]; confidence = cc;
-                plot(handles.conf, 1:size(cc,2), cc);
-                xlabel(handles.conf, 'Window Frame #'); ylabel(handles.conf, 'Occurrence Probability');
+                if size(confidence,2)>=5
+                    dConf = sum(abs(confidence(end-3:end-1) - confidence(end-4:end-2)),2)/3;
+                    occurProb = [occurProb tempConf./(dConf+0.01)];
+                    plot(handles.conf, 1:size(occurProb,2), occurProb);
+                    xlabel(handles.conf, 'Window Frame #'); ylabel(handles.conf, 'Occurrence Rate'); 
+                else
+                    dConf = 1.0;
+                    occurProb = [occurProb tempConf./(dConf+0.01)];
+                    plot(handles.conf, 1:size(occurProb,2), occurProb);
+                    xlabel(handles.conf, 'Window Frame #'); ylabel(handles.conf, 'Occurrence Rate');
+                end                    
+                figure(10);
+                subplot(3,1,1), plot(dist);        title('dist');
+                subplot(3,1,2), plot(confidence);  title('confidence');
+                subplot(3,1,3), plot(occurProb);   title('occruProb');
             end
 
             drawnow;
@@ -220,26 +233,18 @@ function [ distance xbin nbin confidence] = ...
     % Get average confidence during #szSampledDataSize# frames
     function [cf] = getConfidence()
         cf = 0.0;
-        ccNN = nbin; ccXX = xbin;
-        ccSum_sample = sum(ccNN(:));
+        ccNN = nbin; ccSum_sample = sum(ccNN(:));
         ccNN_p = ccNN/ccSum_sample.*100; 
-        %ccNN_p = ccNN(ccNN>1);
-        %ccXX_p = ccXX(ccNN>1);
-        ccXX_p = ccXX;
-        deltaX = xbin(2)-xbin(1);
+        ccXX_p = xbin;
+        deltaX = ccXX_p(2)-ccXX_p(1);
         
         [mu_dist sigma_dist] = getStat(xbin, nbin);
         
         for jj=1:szDist
             tmpInd = find(ccXX_p>dist(jj),1);
             if (~isempty(tmpInd)) && (tmpInd(1)>1)
-%                 if ccNN_p(tmpInd(1))>0
-%                     cf = cf +ccNN_p(tmpInd(1));
-%                 else
-%                     cf = cf + 0;
-%                 end
                   cf = cf + ccNN_p(tmpInd(1));
-            else % For distances which didn't appear before
+            else
                 x1 = 0.0; x2 = 0.0;
                 if dist(jj)<xbin(1)
                     x1 = xbin(1) - deltaX.*(floor((xbin(1)-dist(jj))/deltaX)+1);
@@ -251,17 +256,16 @@ function [ distance xbin nbin confidence] = ...
                 Eps1 = abs(x1-mu_dist);
                 Eps2 = abs(x2-mu_dist);
                 tmpProb = 1.0/2*(sigma_dist^2)*(1/(Eps1^2)-1/(Eps2^2));
-%                 if tmpProb>0
-%                     cf = cf + tmpProb;
-%                 else
-%                     cf = cf + 0;
-%                 end
-                  cf = cf + tmpProb;
+                cf = cf + tmpProb;
             end            
         end
-        cf = (cf./szDist - mean(ccNN_p,2))./std(ccNN_p); 
+        cf = cf./szDist;
+        
+        meanProb = mean(ccNN_p); %sum(ccNN_p/100.*ccNN_p, 2);
+        cf = (cf - meanProb)./std(ccNN_p); 
     end
     
+    % Get the statistical mean and standard deviation of the distances
     function [mu,sigma] = getStat(xbin, nbin)
         xMid = xbin-ones(1,size(xbin,2))*(xbin(2)-xbin(1));
         dataStat = [];
