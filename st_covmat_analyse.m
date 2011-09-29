@@ -2,8 +2,18 @@ function [ distance xbin nbin confidence] = ...
     st_covmat_analyse(videofile, duration, filtersize, handles, conf, d, x, n)
 
     distance = []; xbin =[]; nbin = []; confidence = []; occurProb = [];
-    xx = x; nn = n; dd = d; cc = conf;
-    posImagShow = get(handles.imag, 'Position');
+    xx = x; nn = n; dd = d; cc = conf; detect_distance = [];
+    posImagShow = get(handles.imag, 'Position');   
+    
+    % Add 9/29/2011 Mahalanobis distance
+    mmu = zeros(1,3); mcov = zeros(3,3); malpha = 0.01;
+  
+    fid_results = fopen('Eigenvalues.txt','wt+');
+    if fid_results == 0
+        disp('Create log file failed!\n');
+        return;
+    end
+    
     
     % Video information
     video = mmreader(videofile);
@@ -54,10 +64,10 @@ function [ distance xbin nbin confidence] = ...
     
     curPosition = szSampledDataSize + 1;
     while (curPosition < numberOfFrames) && (~playStopped) && (bTrai==1 || bDete==1) 
-        
         if curPosition >= szSampledDataSize
             j = 1; start = curPosition-szSampledDataSize+1;
             
+            % Get the images
             for i= start:curPosition
                 matImage = rgb2gray(read(video,i));
                 data(:,:,j) = matImage(topX:bottomX, leftY:rightY);
@@ -94,7 +104,9 @@ function [ distance xbin nbin confidence] = ...
 
             % Get covariance matrix, eigenvalues and distance between them
             dist = zeros(1,nFrames); iFrame = 1;
-            for j=1:szSampledDataSize %for j=ceil(szWeightFunc/2):szSampledDataSize-floor(szWeightFunc/2)
+            Deigenvalues = zeros(szSampledDataSize,3);
+            for j=1:szSampledDataSize 
+            %for j=ceil(szWeightFunc/2):szSampledDataSize-floor(szWeightFunc/2)
                     % Structure Tensor
                     ST = zeros(3,3);
                     ST(1,1) = IXX2(newX,newY,j);    ST(1,2) = IXY2(newX,newY,j);  ST(1,3) = IXT2(newX,newY,j);
@@ -102,16 +114,24 @@ function [ distance xbin nbin confidence] = ...
                     ST(3,1) = ST(1,3);              ST(3,2) = ST(2,3);            ST(3,3) = ITT2(newX,newY,j);
 
                     % Get the distance between st using generalized eigenvalue
-                    [e1,e2,e3,d1,d2,d3] = eigen_decomposition(ST/ST0);
+                    [e1,e2,e3,d1,d2,d3] = eigen_decomposition(ST);%/ST0);
+                    Deigenvalues(j,:) = [d1,d2,d3];
                     dist(iFrame) = sqrt(log(d1)*log(d1)+log(d2)*log(d2)+log(d3)*log(d3));
+                    fprintf(fid_results, '%.8f\t%.8f\t%.8f\n', d1, d2, d3);
                     iFrame = iFrame + 1;
             end
+            
+            %[tmpDist mu, ms] = getSTDistance(Deigenvalues);
+            
             dist = dist(~isinf(dist));
             szDist = size(dist,2);
             
             % Update hisogram if training is checked
             if (bTrai)
-                if size(dd,2)<2000
+                %mmu = (1-malpha)*mmu + malpha*mu;
+                %mcov = (1-malpha)*mcov + malpha*ms;
+                
+                if size(dd,2)<20000
                     distance = [dd dist]; dd = distance;
                     [nbin,xbin] = hist(distance, 50); 
                     %nbin = nbin/sum(nbin(:)).*100;
@@ -145,6 +165,7 @@ function [ distance xbin nbin confidence] = ...
             
             % Computer and draw confidence if detecing is checked
             if (bDete==1)
+                detect_distance = [detect_distance dist];
                 tempConf = getConfidence();
                 cc = [cc tempConf]; confidence = cc;
                 if size(confidence,2)>=5
@@ -159,7 +180,7 @@ function [ distance xbin nbin confidence] = ...
                     xlabel(handles.conf, 'Window Frame #'); ylabel(handles.conf, 'Occurrence Rate');
                 end                    
                 figure(10);
-                subplot(3,1,1), plot(dist);        title('dist');
+                subplot(3,1,1), plot(detect_distance);        title('dist');
                 subplot(3,1,2), plot(confidence);  title('confidence');
                 subplot(3,1,3), plot(occurProb);   title('occruProb');
             end
@@ -174,10 +195,12 @@ function [ distance xbin nbin confidence] = ...
         bDete = get(handles.dete,'Value');
         curPosition = curPosition + szSampledDataSize;
     end
+        
+    fclose(fid_results);
     
     % Get reference structure tesor
     function [ST0] = getReferenceST()
-%       % Generate reference ST according to first ** frames        
+      % Generate reference ST according to first ** frames        
 %         if numberOfFrames < szSampledDataSize
 %             ST0=[];
 %             return;
@@ -227,7 +250,7 @@ function [ distance xbin nbin confidence] = ...
         ST0(1,1) = 1;                       ST0(1,2) = 0;                       ST0(1,3) = 0;
         ST0(2,1) = ST0(1,2);                ST0(2,2) = 1;                       ST0(2,3) = 0;
         ST0(3,1) = ST0(1,3);                ST0(3,2) = ST0(2,3);                ST0(3,3) = 1;
-        ST0 = ST0.*100000;
+        ST0 = ST0.*1000;
     end
 
     % Get average confidence during #szSampledDataSize# frames
@@ -255,7 +278,7 @@ function [ distance xbin nbin confidence] = ...
                 end
                 Eps1 = abs(x1-mu_dist);
                 Eps2 = abs(x2-mu_dist);
-                tmpProb = 1.0/2*(sigma_dist^2)*(1/(Eps1^2)-1/(Eps2^2));
+                tmpProb = 1.0/2*(sigma_dist^2)*abs((1/(Eps1^2)-1/(Eps2^2)));
                 cf = cf + tmpProb;
             end            
         end
@@ -277,7 +300,13 @@ function [ distance xbin nbin confidence] = ...
         mu = mean(dataStat,2);
         sigma = std(dataStat);
     end
-
+    
+%     % Get distances of eigenvalues to their mean
+%     function [dist_st, mu, sigma] = getSTDistance(dvalues)
+%         mu = mean(dvalues);
+%         sigma = cov(dvalues);
+%         dist_st = mahal(dvalues,dvalues);
+%     end
 end
         
 
