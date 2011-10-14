@@ -1,4 +1,4 @@
-function [IX,IY,IT] = partial_derivative_3D(data)
+function [IX,IY,IT] = partial_derivative_3D(data, gsize)
 % PARTIAL_DERIVATIVE_3D 
 
     if ndims(data)~=3
@@ -8,7 +8,7 @@ function [IX,IY,IT] = partial_derivative_3D(data)
        error('incorrect number of output parameters'); 
     end
     
-    gsize = 5; gsigma = 1.0;
+    gsigma = 1.0; %gsize = 5; 
     [IX, IY, IT] = gaussgradient(data, gsize, gsigma);
     
 end

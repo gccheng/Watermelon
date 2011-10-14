@@ -29,21 +29,22 @@ close all;
 % s1 = transferedData(:,1);
 % s2 = transferedData(:,2);
 % s3 = transferedData(:,3);
-% avgS1 = getAverage(s1);
-% avgS2 = getAverage(s2);
-% avgS3 = getAverage(s3);
-% figure, plot(avgS1);
-% figure, plot(avgS2);
-% figure, plot(avgS3);
+% avgS1 = s1; %getAverage(s1);
+% avgS2 = s2; %getAverage(s2);
+% avgS3 = s3; %getAverage(s3);
+% figure;
+% subplot(221); plot(avgS1);
+% subplot(222); plot(avgS2);
+% subplot(223); plot(avgS3);
 % 
 % avgSsum=sqrt(avgS1.*avgS1+avgS2.*avgS2+avgS3.*avgS3);
-% figure, plot(avgSsum);
+% subplot(224); plot(avgSsum);
 % 
 %     function avg = getAverage(si)
-%         avg=zeros(floor(m/60),1);
+%         avg=zeros(floor(m/30),1);
 %         j=1;
-%         for i=1:60:m-59
-%             avg(j) = mean(si(i:(i+59)));
+%         for i=1:30:m-29
+%             avg(j) = mean(si(i:(i+29)));
 %             j = j + 1;
 %         end
 %     end
@@ -75,31 +76,18 @@ close all;
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-fid_data = fopen('Eigenvalues.txt', 'rt');
-if fid_data == 0
-    disp('Open data file failed!\n');
-    return;
-end
+Eigenvalues = importdata('Eigenvalues.txt','\t');
+d1 = Eigenvalues(:,1)'; d2 = Eigenvalues(:,2)'; d3 = Eigenvalues(:,3)';
 
-d1 = []; d2 = []; d3 = [];
-while feof(fid_data) == 0
-    eigenvalues = fscanf(fid_data, '%f\t%f\t%f\n', [1 3]);
-    d1 = [d1 eigenvalues(1)];
-    d2 = [d2 eigenvalues(2)];
-    d3 = [d3 eigenvalues(3)];
-end
-fclose(fid_data);
-
-
-figure, hist(d1);
-figure, hist(d2);
-figure, hist(d3);
+% figure, hist(d1);
+% figure, hist(d2);
+% figure, hist(d3);
 
 % d1 = zscore(d1);
 % d2 = zscore(d2);
 % d3 = zscore(d3);
 
-figure, plot3(d1,d2,d3); %axis equal
+figure, plot3(d1,d2,d3,'.'); axis equal
 xlabel('d1');
 ylabel('d2');
 zlabel('d3');

@@ -1,12 +1,19 @@
 function [ distance xbin nbin confidence] = ...
     st_covmat_analyse(videofile, duration, filtersize, handles, conf, d, x, n)
 
+    % Video information
+    video = mmreader(videofile);
+    numberOfFrames = video.NumberOfFrames;
+    Height = video.Height;
+    Width = video.Width;
+    length = video.duration;
+
     distance = []; xbin =[]; nbin = []; confidence = []; occurProb = [];
     xx = x; nn = n; dd = d; cc = conf; detect_distance = [];
     posImagShow = get(handles.imag, 'Position');   
     
     % Add 9/29/2011 Mahalanobis distance
-    mmu = zeros(1,3); mcov = zeros(3,3); malpha = 0.01;
+    mmu = []; mcov = []; malpha = 0.05; minX=0; maxX=Inf;
   
     fid_results = fopen('Eigenvalues.txt','wt+');
     if fid_results == 0
@@ -14,22 +21,13 @@ function [ distance xbin nbin confidence] = ...
         return;
     end
     
-    
-    % Video information
-    video = mmreader(videofile);
-    read(video,inf);
-    numberOfFrames = video.NumberOfFrames;
-    Height = video.Height;
-    Width = video.Width;
-    length = video.duration;
-
     % Parameter setting
-    szDirevative = 5;   szWeightFunc = 11;          % Dimension of video
-    szSampledDataSize = szWeightFunc*2+1;           % Sample Image Size (Temporal)
+    szDirevative = filtersize;   szWeightFunc = 11;         % Dimension of video
+    szSampledDataSize = szWeightFunc*2+1;                   % Sample Image Size (Temporal)
     szHalfWindow = floor(szSampledDataSize/2);
-    nLength = szWeightFunc; nFrames=nLength;        % Total length of video 
+    nLength = szWeightFunc; nFrames=nLength;                % Total length of video 
     posImg=get(handles.posi,'Value'); 
-    posX=posImg(1); posY=posImg(2); posT = szWeightFunc;           % The postion to observe
+    posX=posImg(1); posY=posImg(2); posT = szWeightFunc;    % The postion to observe
 
     % Image sample region
     topX = max(1, posX-szHalfWindow);
@@ -77,7 +75,7 @@ function [ distance xbin nbin confidence] = ...
             axes(handles.imag); imshow(newImag);    
             
             % Compute the gradients
-            [IX, IY, IT] = partial_derivative_3D(data);
+            [IX, IY, IT] = partial_derivative_3D(data, szDirevative);
 
             % Compute the images of Ixx, Ixy, Ixt, Iyy, Iyt, Itt
             for jFrame=1:szSampledDataSize
@@ -103,8 +101,8 @@ function [ distance xbin nbin confidence] = ...
             ITT2 = convole_3D(ITT, 'Gauss', 11, sigma);
 
             % Get covariance matrix, eigenvalues and distance between them
-            dist = zeros(1,nFrames); iFrame = 1;
-            Deigenvalues = zeros(szSampledDataSize,3);
+            dist = zeros(1,nFrames); 
+            Deigenvalues = zeros(szSampledDataSize,3); jEigvalues = 1;
             for j=1:szSampledDataSize 
             %for j=ceil(szWeightFunc/2):szSampledDataSize-floor(szWeightFunc/2)
                     % Structure Tensor
@@ -115,21 +113,16 @@ function [ distance xbin nbin confidence] = ...
 
                     % Get the distance between st using generalized eigenvalue
                     [e1,e2,e3,d1,d2,d3] = eigen_decomposition(ST);%/ST0);
-                    Deigenvalues(j,:) = [d1,d2,d3];
-                    dist(iFrame) = sqrt(log(d1)*log(d1)+log(d2)*log(d2)+log(d3)*log(d3));
+                    Deigenvalues(jEigvalues,:) = [d1,d2,d3];
+                    jEigvalues = jEigvalues + 1;
+                    % dist(iFrame) = sqrt(log(d1)*log(d1)+log(d2)*log(d2)+log(d3)*log(d3));
                     fprintf(fid_results, '%.8f\t%.8f\t%.8f\n', d1, d2, d3);
-                    iFrame = iFrame + 1;
             end
             
-            %[tmpDist mu, ms] = getSTDistance(Deigenvalues);
-            
-            dist = dist(~isinf(dist));
-            szDist = size(dist,2);
-            
             % Update hisogram if training is checked
-            if (bTrai)
-                %mmu = (1-malpha)*mmu + malpha*mu;
-                %mcov = (1-malpha)*mcov + malpha*ms;
+            if (bTrai && (~bDete))            
+                dist = getSTDistance(Deigenvalues, bTrai);
+                szDist = size(dist,2);
                 
                 if size(dd,2)<20000
                     distance = [dd dist]; dd = distance;
@@ -152,8 +145,8 @@ function [ distance xbin nbin confidence] = ...
                 sum_sample = sum(nbin(:));
                 fprintf('Total valid samples: %d ', sum_sample);
                 nbin_p = nbin/sum_sample.*100;
-                nbin_p = nbin_p(nbin_p>1);
-                xbin_p = xbin(nbin_p>1);
+                nbin_p = nbin_p;%(nbin_p>1);
+                xbin_p = xbin;%(nbin_p>1);
 
                 % Draw histogram
                 if ~isempty(xbin_p)
@@ -164,21 +157,27 @@ function [ distance xbin nbin confidence] = ...
             end
             
             % Computer and draw confidence if detecing is checked
-            if (bDete==1)
+            if (bDete && (~bTrai))
+                dist = getSTDistance(Deigenvalues, bTrai);
+                bNorm = get(handles.norm,'Value');
+                if bNorm         % Normalize distance to [0,1]
+                    if isempty(detect_distance)
+                       normalizeHist();
+                    end
+                    dist = bsxfun(@rdivide, bsxfun(@minus, dist,minX), maxX-minX);
+                end
                 detect_distance = [detect_distance dist];
-                tempConf = getConfidence();
+                tempConf = getConfidence(dist);
                 cc = [cc tempConf]; confidence = cc;
-                if size(confidence,2)>=5
-                    dConf = sum(abs(confidence(end-3:end-1) - confidence(end-4:end-2)),2)/3;
-                    occurProb = [occurProb tempConf./(dConf+0.01)];
-                    plot(handles.conf, 1:size(occurProb,2), occurProb);
-                    xlabel(handles.conf, 'Window Frame #'); ylabel(handles.conf, 'Occurrence Rate'); 
-                else
-                    dConf = 1.0;
-                    occurProb = [occurProb tempConf./(dConf+0.01)];
-                    plot(handles.conf, 1:size(occurProb,2), occurProb);
-                    xlabel(handles.conf, 'Window Frame #'); ylabel(handles.conf, 'Occurrence Rate');
-                end                    
+                dConf = 1.0;
+                %anomaly accumulation penalty (Commented out 10/6/2011)
+                %{if size(confidence,2)>=5
+                %    dConf = sum(abs(confidence(end-3:end-1) - confidence(end-4:end-2)),2)/3;
+                %end
+                occurProb = [occurProb tempConf./(dConf+0.01)];
+                plot(handles.conf, 1:size(occurProb,2), occurProb);
+                xlabel(handles.conf, 'Window Frame #'); ylabel(handles.conf, 'Occurrence Rate');  
+                
                 figure(10);
                 subplot(3,1,1), plot(detect_distance);        title('dist');
                 subplot(3,1,2), plot(confidence);  title('confidence');
@@ -254,7 +253,7 @@ function [ distance xbin nbin confidence] = ...
     end
 
     % Get average confidence during #szSampledDataSize# frames
-    function [cf] = getConfidence()
+    function [cf] = getConfidence(dist)
         cf = 0.0;
         ccNN = nbin; ccSum_sample = sum(ccNN(:));
         ccNN_p = ccNN/ccSum_sample.*100; 
@@ -278,8 +277,10 @@ function [ distance xbin nbin confidence] = ...
                 end
                 Eps1 = abs(x1-mu_dist);
                 Eps2 = abs(x2-mu_dist);
-                tmpProb = 1.0/2*(sigma_dist^2)*abs((1/(Eps1^2)-1/(Eps2^2)));
+                tmpProb = 0.5*(sigma_dist^2)*abs((1/(Eps1^2)-1/(Eps2^2)))*100; %percetage%
                 cf = cf + tmpProb;
+                disp('====Chebysheve====');
+                disp(tmpProb);
             end            
         end
         cf = cf./szDist;
@@ -301,12 +302,42 @@ function [ distance xbin nbin confidence] = ...
         sigma = std(dataStat);
     end
     
-%     % Get distances of eigenvalues to their mean
-%     function [dist_st, mu, sigma] = getSTDistance(dvalues)
-%         mu = mean(dvalues);
-%         sigma = cov(dvalues);
-%         dist_st = mahal(dvalues,dvalues);
-%     end
+    % Get distances of eigenvalues to their mean
+    function [dist_st] = getSTDistance(dvalues, bTrain)
+        nDvalues = size(dvalues,1);
+        dist_st = zeros(1, nDvalues);
+        if bTrain
+            %Smallest eigenvalues
+            %mmean = mean(dvalues(:,3)); msigma = cov(dvalues(:,3)); dist_st = mahal(dvalues(:,3),dvalues(:,3))'; 
+            mmean = mean(dvalues);
+            msigma = cov(dvalues);
+            if rcond(msigma) > 1e-10
+                dist_st = mahal(dvalues,dvalues)'; 
+            end
+            
+            if isempty(mmu) || isempty(mcov)
+                mmu = mmean;
+                mcov = msigma;                
+            else
+                mmu = (1-malpha)*mmu + malpha*mmean;
+                mcov = (1-malpha)*mcov + malpha*msigma;
+            end
+        else
+            for di=1:nDvalues
+                %Samllest eigenvalues
+                %dmval = dvalues(di,3) - mmu; 
+                dmval = dvalues(di,:) - mmu;
+                dist_st(di) = sqrt(dmval/mcov*dmval');
+            end
+        end
+    end
+    
+    function normalizeHist()
+        minX = min(xbin);
+        maxX = max(xbin);
+        xbin = bsxfun(@minus, xbin, minX);
+        xbin = bsxfun(@rdivide, xbin, maxX-minX);
+    end
 end
         
 

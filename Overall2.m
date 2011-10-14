@@ -22,7 +22,7 @@ function varargout = Overall2(varargin)
 
 % Edit the above text to modify the response to help Overall2
 
-% Last Modified by GUIDE v2.5 23-Aug-2011 16:17:55
+% Last Modified by GUIDE v2.5 13-Oct-2011 15:38:05
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -109,11 +109,13 @@ function acvi_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 [filename, pathname] = ...
-     uigetfile({'*.avi';'*.mpeg';'*.mpg';'*.*'},'Open a video file');
+     uigetfile({'*.avi;*.wmv;*.mpeg;*.mpg', 'Video Files(*.avi,*.wmv,*.mpeg,*.mpg)';...
+                '*.*', 'All Files(*.*)'},...
+               'Open a video file');
 
 if filename
     vid = mmreader([pathname filename]); 
-    for i=1:5
+    for i=1:4
         fBuf= read(vid, i);
     end
     fImag = fBuf;
@@ -183,12 +185,12 @@ function stop_Callback(hObject, eventdata, handles)
 
 pushed_down = get(hObject, 'Value');
 if pushed_down
-    disp('Stopping analysis.');
+    disp('Stopping analysis...');
 else
     % Read parameter setting
     videofile = get(handles.acvi,'UserData');
-    duration = uint8(get(handles.dura,'Value'));
-    filtersize = uint8(get(handles.fisi,'Value'));
+    duration = get(handles.dura,'Value');
+    filtersize = get(handles.fisi,'Value');
 
     % Retrieve saved data and run
     conf = get(handles.conf, 'UserData');
@@ -313,7 +315,7 @@ function piup_Callback(hObject, eventdata, handles)
 fImage = get(handles.imag, 'UserData');
 height = size(fImage,1); width = size(fImage,2);
 hFigure = figure('Name', 'Pick up a point to observe'); 
-set(hFigure,'Position',[400,400,width,height]);
+set(hFigure,'Position',[200,200,width,height]);
 imshow(fImage,'Border', 'tight');
 set(hFigure, 'WindowButtonDownFcn',{@my_pickup_Callback, handles, width, height});
 
@@ -334,3 +336,17 @@ function dete_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 % Hint: get(hObject,'Value') returns toggle state of dete
+bDete = get(hObject,'Value');
+if bDete
+    set(handles.norm, 'Enable', 'off');
+else
+    set(handles.norm, 'Enable', 'on');
+end
+
+% --- Executes on button press in norm.
+function norm_Callback(hObject, eventdata, handles)
+% hObject    handle to norm (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of norm

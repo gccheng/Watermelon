@@ -39,10 +39,12 @@ end
 
 function y = gauss(x,sigma)
 % GAUSS Gaussian function
+    x = double(x);
     y = exp(-x^2/(2*sigma^2)) / (sigma*sqrt(2*pi));
 end
 
 function y = dgauss(x,sigma)
 % DGAUSS first order derivative of Gaussian
+    x = double(x);
     y = -x * gauss(x,sigma) / sigma^2;
 end
