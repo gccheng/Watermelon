@@ -25,7 +25,6 @@ function [ distance xbin nbin confidence] = ...
     szDirevative = filtersize;   szWeightFunc = 11;         % Dimension of video
     szSampledDataSize = szWeightFunc*2+1;                   % Sample Image Size (Temporal)
     szHalfWindow = floor(szSampledDataSize/2);
-    nLength = szWeightFunc; nFrames=nLength;                % Total length of video 
     posImg=get(handles.posi,'Value'); 
     posX=posImg(1); posY=posImg(2); posT = szWeightFunc;    % The postion to observe
 
@@ -77,31 +76,20 @@ function [ distance xbin nbin confidence] = ...
             % Compute the gradients
             [IX, IY, IT] = partial_derivative_3D(data, szDirevative);
 
-            % Compute the images of Ixx, Ixy, Ixt, Iyy, Iyt, Itt
-            for jFrame=1:szSampledDataSize
-                for i=1:spanX
-                    for j=1:spanY
-                       IXX(i,j,jFrame) = IX(i,j,jFrame)*IX(i,j,jFrame); 
-                       IXY(i,j,jFrame) = IX(i,j,jFrame)*IY(i,j,jFrame);
-                       IXT(i,j,jFrame) = IX(i,j,jFrame)*IT(i,j,jFrame);
-                       IYY(i,j,jFrame) = IY(i,j,jFrame)*IY(i,j,jFrame);
-                       IYT(i,j,jFrame) = IY(i,j,jFrame)*IT(i,j,jFrame);
-                       ITT(i,j,jFrame) = IT(i,j,jFrame)*IT(i,j,jFrame);
-                    end
-                end
-            end     
+            % Compute the images of Ixx, Ixy, Ixt, Iyy, Iyt, Itt            
+            IXX=IX.*IX; IXY=IX.*IY; IXT=IX.*IT;
+                        IYY=IY.*IY; IYT=IY.*IT;
+                                    ITT=IT.*IT;
 
-            % Convolve each of these images with a larger Gaussian
-            sigma = 1.0;
-            IXX2 = convole_3D(IXX, 'Gauss', 11, sigma);
-            IXY2 = convole_3D(IXY, 'Gauss', 11, sigma);
-            IXT2 = convole_3D(IXT, 'Gauss', 11, sigma);
-            IYY2 = convole_3D(IYY, 'Gauss', 11, sigma);
-            IYT2 = convole_3D(IYT, 'Gauss', 11, sigma);
-            ITT2 = convole_3D(ITT, 'Gauss', 11, sigma);
+            % Convolve spatially each of these images with a larger Gaussian
+            IXX2 = convole_3D(IXX, szWeightFunc);
+            IXY2 = convole_3D(IXY, szWeightFunc);
+            IXT2 = convole_3D(IXT, szWeightFunc);
+            IYY2 = convole_3D(IYY, szWeightFunc);
+            IYT2 = convole_3D(IYT, szWeightFunc);
+            ITT2 = convole_3D(ITT, szWeightFunc);
 
             % Get covariance matrix, eigenvalues and distance between them
-            dist = zeros(1,nFrames); 
             Deigenvalues = zeros(szSampledDataSize,3); jEigvalues = 1;
             for j=1:szSampledDataSize 
             %for j=ceil(szWeightFunc/2):szSampledDataSize-floor(szWeightFunc/2)

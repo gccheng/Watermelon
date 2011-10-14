@@ -22,7 +22,7 @@ function varargout = Overall2(varargin)
 
 % Edit the above text to modify the response to help Overall2
 
-% Last Modified by GUIDE v2.5 13-Oct-2011 15:38:05
+% Last Modified by GUIDE v2.5 14-Oct-2011 15:37:38
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -350,3 +350,20 @@ function norm_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 % Hint: get(hObject,'Value') returns toggle state of norm
+
+
+% --- Executes on button press in anal.
+function anal_Callback(hObject, eventdata, handles)
+% hObject    handle to anal (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Read parameter setting
+videofile = get(handles.acvi,'UserData');
+filtersize = get(handles.fisi,'Value');
+
+% Retrieve saved data and run
+[ distance xbin nbin confidence] = st_multiple_analyse(videofile, filtersize, handles);
+disp('Analysis stopped.');
+
+% Save updated data
