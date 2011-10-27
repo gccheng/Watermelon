@@ -86,7 +86,9 @@ d1 = Eigenvalues(:,1)'; d2 = Eigenvalues(:,2)'; d3 = Eigenvalues(:,3)';
 % d1 = zscore(d1);
 % d2 = zscore(d2);
 % d3 = zscore(d3);
-
+figure, plot(d1);
+figure, plot(d2);
+figure, plot(d3);
 figure, plot3(d1,d2,d3,'.'); axis equal
 xlabel('d1');
 ylabel('d2');

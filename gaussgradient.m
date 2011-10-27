@@ -34,9 +34,9 @@ function [gx,gy,gt]=gaussgradient(IM,size,sigma)
     load htDerivative;
     
     % 3D filtering
-    gx = imfilter(IM,hx,'replicate','corr');
-    gy = imfilter(IM,hy,'replicate','corr');
-    gt = imfilter(IM,ht,'replicate','corr');
+    gx = imfilter(IM,hx,'replicate','conv');
+    gy = imfilter(IM,hy,'replicate','conv');
+    gt = imfilter(IM,ht,'replicate','conv');
 
 end
 

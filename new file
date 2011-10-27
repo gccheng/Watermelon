@@ -1,0 +1,4 @@
+1. Use the Mahalanobis distance, yield better results
+2. Is the high probability event almost nomal?  NO!
+--> The limitation of the method used: didn't consider the temporal relationship  
+--> Solution:(S1) For time window w1, compute the average probability, compare.... (S2) Within a larger time window W2(n*W1), the pdf(w2) should be consistent with pdf(training)--KL divergence

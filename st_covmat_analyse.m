@@ -13,7 +13,7 @@ function [ distance xbin nbin confidence] = ...
     posImagShow = get(handles.imag, 'Position');   
     
     % Add 9/29/2011 Mahalanobis distance
-    mmu = []; mcov = []; malpha = 0.05; minX=0; maxX=Inf;
+    mmu = []; mcov = []; malpha = 0.1; minX=0; maxX=Inf;
   
     fid_results = fopen('Eigenvalues.txt','wt+');
     if fid_results == 0
@@ -60,7 +60,7 @@ function [ distance xbin nbin confidence] = ...
     bDete = get(handles.dete,'Value');
     
     curPosition = szSampledDataSize + 1;
-    while (curPosition < numberOfFrames) && (~playStopped) && (bTrai==1 || bDete==1) 
+    while ((curPosition < numberOfFrames) && (~playStopped))
         if curPosition >= szSampledDataSize
             j = 1; start = curPosition-szSampledDataSize+1;
             
@@ -73,38 +73,40 @@ function [ distance xbin nbin confidence] = ...
             newImag = imresize(read(video,curPosition), [ posImagShow(4)  posImagShow(3)]);
             axes(handles.imag); imshow(newImag);    
             
-            % Compute the gradients
-            [IX, IY, IT] = partial_derivative_3D(data, szDirevative);
+            if ( (bTrai==1) || (bDete==1))
+                % Compute the gradients
+                [IX, IY, IT] = partial_derivative_3D(data, szDirevative);
 
-            % Compute the images of Ixx, Ixy, Ixt, Iyy, Iyt, Itt            
-            IXX=IX.*IX; IXY=IX.*IY; IXT=IX.*IT;
-                        IYY=IY.*IY; IYT=IY.*IT;
-                                    ITT=IT.*IT;
+                % Compute the images of Ixx, Ixy, Ixt, Iyy, Iyt, Itt            
+                IXX=IX.*IX; IXY=IX.*IY; IXT=IX.*IT;
+                            IYY=IY.*IY; IYT=IY.*IT;
+                                        ITT=IT.*IT;
 
-            % Convolve spatially each of these images with a larger Gaussian
-            IXX2 = convole_3D(IXX, szWeightFunc);
-            IXY2 = convole_3D(IXY, szWeightFunc);
-            IXT2 = convole_3D(IXT, szWeightFunc);
-            IYY2 = convole_3D(IYY, szWeightFunc);
-            IYT2 = convole_3D(IYT, szWeightFunc);
-            ITT2 = convole_3D(ITT, szWeightFunc);
+                % Convolve spatially each of these images with a larger Gaussian
+                IXX2 = convole_3D(IXX, szWeightFunc);
+                IXY2 = convole_3D(IXY, szWeightFunc);
+                IXT2 = convole_3D(IXT, szWeightFunc);
+                IYY2 = convole_3D(IYY, szWeightFunc);
+                IYT2 = convole_3D(IYT, szWeightFunc);
+                ITT2 = convole_3D(ITT, szWeightFunc);
 
-            % Get covariance matrix, eigenvalues and distance between them
-            Deigenvalues = zeros(szSampledDataSize,3); jEigvalues = 1;
-            for j=1:szSampledDataSize 
-            %for j=ceil(szWeightFunc/2):szSampledDataSize-floor(szWeightFunc/2)
-                    % Structure Tensor
-                    ST = zeros(3,3);
-                    ST(1,1) = IXX2(newX,newY,j);    ST(1,2) = IXY2(newX,newY,j);  ST(1,3) = IXT2(newX,newY,j);
-                    ST(2,1) = ST(1,2);              ST(2,2) = IYY2(newX,newY,j);  ST(2,3) = IYT2(newX,newY,j);
-                    ST(3,1) = ST(1,3);              ST(3,2) = ST(2,3);            ST(3,3) = ITT2(newX,newY,j);
+                % Get covariance matrix, eigenvalues and distance between them
+                Deigenvalues = zeros(szSampledDataSize,3); jEigvalues = 1;
+                for j=1:szSampledDataSize 
+                %for j=ceil(szWeightFunc/2):szSampledDataSize-floor(szWeightFunc/2)
+                        % Structure Tensor
+                        ST = zeros(3,3);
+                        ST(1,1) = IXX2(newX,newY,j);    ST(1,2) = IXY2(newX,newY,j);  ST(1,3) = IXT2(newX,newY,j);
+                        ST(2,1) = ST(1,2);              ST(2,2) = IYY2(newX,newY,j);  ST(2,3) = IYT2(newX,newY,j);
+                        ST(3,1) = ST(1,3);              ST(3,2) = ST(2,3);            ST(3,3) = ITT2(newX,newY,j);
 
-                    % Get the distance between st using generalized eigenvalue
-                    [e1,e2,e3,d1,d2,d3] = eigen_decomposition(ST);%/ST0);
-                    Deigenvalues(jEigvalues,:) = [d1,d2,d3];
-                    jEigvalues = jEigvalues + 1;
-                    % dist(iFrame) = sqrt(log(d1)*log(d1)+log(d2)*log(d2)+log(d3)*log(d3));
-                    fprintf(fid_results, '%.8f\t%.8f\t%.8f\n', d1, d2, d3);
+                        % Get the distance between st using generalized eigenvalue
+                        [e1,e2,e3,d1,d2,d3] = eigen_decomposition(ST);%/ST0);
+                        Deigenvalues(jEigvalues,:) = [d1,d2,d3];
+                        jEigvalues = jEigvalues + 1;
+                        % dist(iFrame) = sqrt(log(d1)*log(d1)+log(d2)*log(d2)+log(d3)*log(d3));
+                        fprintf(fid_results, '%.8f\t%.8f\t%.8f\n', d1, d2, d3);
+                end
             end
             
             % Update hisogram if training is checked
@@ -151,6 +153,9 @@ function [ distance xbin nbin confidence] = ...
                 if bNorm         % Normalize distance to [0,1]
                     if isempty(detect_distance)
                        normalizeHist();
+                       nbin_p = xbin; xbin_p = xbin;
+                       bar(handles.hist, xbin_p, nbin_p, 'b');
+                       xlim(handles.hist, [0 1]);
                     end
                     dist = bsxfun(@rdivide, bsxfun(@minus, dist,minX), maxX-minX);
                 end
@@ -243,8 +248,9 @@ function [ distance xbin nbin confidence] = ...
     % Get average confidence during #szSampledDataSize# frames
     function [cf] = getConfidence(dist)
         cf = 0.0;
-        ccNN = nbin; ccSum_sample = sum(ccNN(:));
-        ccNN_p = ccNN/ccSum_sample.*100; 
+        %ccNN = nbin; ccSum_sample = sum(ccNN(:));
+        %ccNN_p = ccNN/ccSum_sample.*100; 
+        ccNN_p = nbin;
         ccXX_p = xbin;
         deltaX = ccXX_p(2)-ccXX_p(1);
         
@@ -252,38 +258,49 @@ function [ distance xbin nbin confidence] = ...
         
         for jj=1:szDist
             tmpInd = find(ccXX_p>dist(jj),1);
-            if (~isempty(tmpInd)) && (tmpInd(1)>1)
-                  cf = cf + ccNN_p(tmpInd(1));
+            if ((~isempty(tmpInd)) && (ccNN_p(tmpInd(1))>0))
+                  cf = cf + log(ccNN_p(tmpInd(1)));
             else
                 x1 = 0.0; x2 = 0.0;
-                if dist(jj)<xbin(1)
+                if dist(jj)<mu_dist%xbin(1)
                     x1 = xbin(1) - deltaX.*(floor((xbin(1)-dist(jj))/deltaX)+1);
                     x2 = xbin(1) - deltaX.* floor((xbin(1)-dist(jj))/deltaX);
-                elseif dist(jj)>xbin(end)
+                elseif dist(jj)>=mu_dist%xbin(end)
                     x1 = xbin(end) + deltaX.* floor((dist(jj)-xbin(end))/deltaX);
                     x2 = xbin(end) + deltaX.*(floor((dist(jj)-xbin(end))/deltaX)+1);
+                else % Within [minX, maxX] but probability is zero.
+                    if dist(jj)<mu_dist
+                        x1 = xbin(1) - deltaX.*(floor((xbin(1)-dist(jj))/deltaX)+1);
+                        x2 = xbin(1) - deltaX.* floor((xbin(1)-dist(jj))/deltaX);
+                    elseif dist(jj)>=mu_dist
+                        x1 = xbin(end) + deltaX.* floor((dist(jj)-xbin(end))/deltaX);
+                        x2 = xbin(end) + deltaX.*(floor((dist(jj)-xbin(end))/deltaX)+1);
+                    end
                 end
                 Eps1 = abs(x1-mu_dist);
                 Eps2 = abs(x2-mu_dist);
                 tmpProb = 0.5*(sigma_dist^2)*abs((1/(Eps1^2)-1/(Eps2^2)))*100; %percetage%
-                cf = cf + tmpProb;
+                cf = cf + log(tmpProb);
                 disp('====Chebysheve====');
                 disp(tmpProb);
             end            
         end
         cf = cf./szDist;
         
-        meanProb = mean(ccNN_p); %sum(ccNN_p/100.*ccNN_p, 2);
-        cf = (cf - meanProb)./std(ccNN_p); 
+        %meanProb = mean(ccNN_p); %sum(ccNN_p/100.*ccNN_p, 2);
+        %cf = (cf - meanProb)./std(ccNN_p); 
+        tmp_ccNN_p = ccNN_p; tmp_ccNN_p(tmp_ccNN_p==0) = 1;
+        multipProb = sum(log(tmp_ccNN_p'))/50;
+        cf = cf-multipProb;
     end
     
     % Get the statistical mean and standard deviation of the distances
     function [mu,sigma] = getStat(xbin, nbin)
-        xMid = xbin-ones(1,size(xbin,2))*(xbin(2)-xbin(1));
+        xMid = xbin+ones(1,size(xbin,2))*(xbin(2)-xbin(1));
         dataStat = [];
         for iStat=1:size(xbin,2)
             if nbin(iStat)>0
-                dataStat = [dataStat ones(1,nbin(iStat))*xMid(iStat)];
+                dataStat = [dataStat ones(1,uint16(nbin(iStat)))*xMid(iStat)];
             end
         end
         mu = mean(dataStat,2);
@@ -294,14 +311,20 @@ function [ distance xbin nbin confidence] = ...
     function [dist_st] = getSTDistance(dvalues, bTrain)
         nDvalues = size(dvalues,1);
         dist_st = zeros(1, nDvalues);
+%         if ~isempty(mmu) && ~isempty(mcov)
+%             for di=1:nDvalues
+%                 dmval = dvalues(di,:) - mmu;
+%                 dist_st(di) = sqrt(dmval/mcov*dmval');
+%             end
+%         end
         if bTrain
             %Smallest eigenvalues
             %mmean = mean(dvalues(:,3)); msigma = cov(dvalues(:,3)); dist_st = mahal(dvalues(:,3),dvalues(:,3))'; 
             mmean = mean(dvalues);
             msigma = cov(dvalues);
-            if rcond(msigma) > 1e-10
-                dist_st = mahal(dvalues,dvalues)'; 
-            end
+            %if rcond(msigma) > 1e-10
+            %    dist_st = mahal(dvalues,dvalues)'; 
+            %end
             
             if isempty(mmu) || isempty(mcov)
                 mmu = mmean;
@@ -310,13 +333,10 @@ function [ distance xbin nbin confidence] = ...
                 mmu = (1-malpha)*mmu + malpha*mmean;
                 mcov = (1-malpha)*mcov + malpha*msigma;
             end
-        else
-            for di=1:nDvalues
-                %Samllest eigenvalues
-                %dmval = dvalues(di,3) - mmu; 
-                dmval = dvalues(di,:) - mmu;
-                dist_st(di) = sqrt(dmval/mcov*dmval');
-            end
+        end
+        for di=1:nDvalues
+            dmval = dvalues(di,:) - mmu;
+            dist_st(di) = sqrt(dmval/mcov*dmval');
         end
     end
     
@@ -325,6 +345,10 @@ function [ distance xbin nbin confidence] = ...
         maxX = max(xbin);
         xbin = bsxfun(@minus, xbin, minX);
         xbin = bsxfun(@rdivide, xbin, maxX-minX);
+        nbin = filter([1 2 1]/4, 1, [nbin(1) nbin nbin(end)]);
+        nbin = nbin(2:end-1);
+        sum_nbin = sum(nbin(:));
+        nbin = nbin/sum_nbin.*100;
     end
 end
         
