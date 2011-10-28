@@ -22,7 +22,7 @@ function varargout = Overall2(varargin)
 
 % Edit the above text to modify the response to help Overall2
 
-% Last Modified by GUIDE v2.5 14-Oct-2011 15:37:38
+% Last Modified by GUIDE v2.5 27-Oct-2011 17:44:14
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -238,30 +238,6 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
 end
 
 
-
-function sigm_Callback(hObject, eventdata, handles)
-% hObject    handle to sigm (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: get(hObject,'String') returns contents of sigm as text
-%        str2double(get(hObject,'String')) returns contents of sigm as a double
-
-
-% --- Executes during object creation, after setting all properties.
-function sigm_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to sigm (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: edit controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-
-
 function dura_Callback(hObject, eventdata, handles)
 % hObject    handle to dura (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
@@ -361,9 +337,33 @@ function anal_Callback(hObject, eventdata, handles)
 % Read parameter setting
 videofile = get(handles.acvi,'UserData');
 filtersize = get(handles.fisi,'Value');
-
+Histograms = get(handles.trhi,'UserData');
 % Retrieve saved data and run
-[ distance xbin nbin confidence] = st_multiple_analyse(videofile, filtersize, handles);
+[ distance xbin nbin confidence] = st_multiple_analyse(videofile, ...
+    filtersize, handles, Histograms);
 disp('Analysis stopped.');
 
 % Save updated data
+
+
+% --- Executes on button press in trhi.
+function trhi_Callback(hObject, eventdata, handles)
+% hObject    handle to trhi (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+TrainSeletected = get(handles.trhi, 'Value');
+
+if TrainSeletected==1
+    [filename, pathname] = ...
+        uigetfile({'*.mat;*.txt', 'Trained histograms(*.mat,*.txt)';...
+        '*.*', 'All Files(*.*)'},...
+        'Import Trained Histograms');
+    if filename
+        Histograms = importdata([pathname filename]);
+        set(handles.trhi, 'UserData', Histograms);
+        
+        set(handles.trai, 'Value', 1);
+        set(handles.trai, 'Value', 0);
+    end
+end

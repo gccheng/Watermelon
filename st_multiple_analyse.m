@@ -1,5 +1,5 @@
 function [ distance xbin nbin confidence] = ...
-    st_multiple_analyse(videofile, filtersize, handles)
+    st_multiple_analyse(videofile, filtersize, handles, varargin)
     temppp = [];
     % Video information
     video = mmreader(videofile);
@@ -11,7 +11,11 @@ function [ distance xbin nbin confidence] = ...
     szDerivative = filtersize;   szConvFunc = 2*szDerivative+1;           % Derivative and Convolution kernel size
     szSampledDataSize = szConvFunc*2+1;                                 % Sample Image Size (Temporal)
     
-    Histograms = zeros(52,floor(Height/filtersize),floor(Width/filtersize));
+    if (nargin==3)
+        Histograms = zeros(52,floor(Height/filtersize),floor(Width/filtersize));
+    else
+        Histograms = varargin{1};
+    end
     
     distance = cell(floor(Height/filtersize), floor(Width/filtersize)); 
     xbin =zeros(50, floor(Height/filtersize), floor(Width/filtersize));
@@ -106,7 +110,7 @@ function [ distance xbin nbin confidence] = ...
             bar(handles.hist, xbin(:,8,18), nbin(:,8,18));
             temppp = [temppp confidence(8,18)];
             figure(1), plot(temppp);
-            confidence = -confidence; confidence(confidence<0.5) = 0;
+            confidence = -confidence; confidence(confidence<5) = 0;
             axes(handles.conf), imshow(confidence,[min(confidence(:)) max(confidence(:))]);
         end
         
@@ -127,12 +131,11 @@ function [ distance xbin nbin confidence] = ...
     % Get average confidence during #szSampledDataSize# frames
     function [cf] = getConfidence(dist,indX,indY)
         cf = 0.0;
-        ccNN = nbin(:,indX,indY); ccSum_sample = sum(ccNN(:));
-        ccNN_p = ccNN/ccSum_sample.*100; 
+        ccNN_p = Histograms(3:end, indX, indY);
         ccXX_p = xbin(:,indX,indY);
         deltaX = ccXX_p(2)-ccXX_p(1);
         
-        [mu_dist sigma_dist] = getStat(xbin(:,indX,indY), nbin(:,indX,indY));
+        [mu_dist sigma_dist] = getStat(ccXX_p, ccNN_p);
         
         for jj=1:szDist
             tmpInd = find(ccXX_p>dist(jj),1);
@@ -159,7 +162,7 @@ function [ distance xbin nbin confidence] = ...
                 Eps2 = abs(x2-mu_dist);
                 tmpProb = 0.5*(sigma_dist^2)*abs((1/(Eps1^2)-1/(Eps2^2)))*100; %percetage%
                 cf = cf + log(tmpProb);
-                %disp('====Chebysheve===='); disp(tmpProb);
+                disp('====Chebysheve===='); disp(tmpProb);
             end            
         end
         cf = cf./szDist;
@@ -205,10 +208,13 @@ function [ distance xbin nbin confidence] = ...
                                 + malpha(indX,indY)*msigma;
             end
         end
-        for di=1:nDvalues
-            dmval = dvalues(di,:) - mmu(:,indX,indY)';
-            dist_st(di) = sqrt(dmval/mcov(:,:,indX,indY)*dmval');
+        if rcond(mcov(:,:,indX,indY)) > 1e-15
+            for di=1:nDvalues
+                dmval = dvalues(di,:) - mmu(:,indX,indY)';
+                dist_st(di) = sqrt(dmval/mcov(:,:,indX,indY)*dmval');
+            end
         end
+        dist_st = dist_st(dist_st~=0);
     end
     
     function normalizeHist(indX,indY)

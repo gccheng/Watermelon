@@ -153,7 +153,7 @@ function [ distance xbin nbin confidence] = ...
                 if bNorm         % Normalize distance to [0,1]
                     if isempty(detect_distance)
                        normalizeHist();
-                       nbin_p = xbin; xbin_p = xbin;
+                       nbin_p = nbin; xbin_p = xbin;
                        bar(handles.hist, xbin_p, nbin_p, 'b');
                        xlim(handles.hist, [0 1]);
                     end
@@ -311,20 +311,9 @@ function [ distance xbin nbin confidence] = ...
     function [dist_st] = getSTDistance(dvalues, bTrain)
         nDvalues = size(dvalues,1);
         dist_st = zeros(1, nDvalues);
-%         if ~isempty(mmu) && ~isempty(mcov)
-%             for di=1:nDvalues
-%                 dmval = dvalues(di,:) - mmu;
-%                 dist_st(di) = sqrt(dmval/mcov*dmval');
-%             end
-%         end
         if bTrain
-            %Smallest eigenvalues
-            %mmean = mean(dvalues(:,3)); msigma = cov(dvalues(:,3)); dist_st = mahal(dvalues(:,3),dvalues(:,3))'; 
             mmean = mean(dvalues);
             msigma = cov(dvalues);
-            %if rcond(msigma) > 1e-10
-            %    dist_st = mahal(dvalues,dvalues)'; 
-            %end
             
             if isempty(mmu) || isempty(mcov)
                 mmu = mmean;
@@ -334,9 +323,11 @@ function [ distance xbin nbin confidence] = ...
                 mcov = (1-malpha)*mcov + malpha*msigma;
             end
         end
-        for di=1:nDvalues
-            dmval = dvalues(di,:) - mmu;
-            dist_st(di) = sqrt(dmval/mcov*dmval');
+        if rcond(mcov) > 1e-15
+            for di=1:nDvalues
+                dmval = dvalues(di,:) - mmu;
+                dist_st(di) = sqrt(dmval/mcov*dmval');
+            end
         end
     end
     
