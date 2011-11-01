@@ -1,5 +1,6 @@
 function [ distance xbin nbin confidence] = ...
-    st_multiple_analyse(videofile, filtersize, handles, varargin)
+    st_multiple_analyse(videofile, filtersize, handles, HistTrained)
+    
     temppp = [];
     % Video information
     video = mmreader(videofile);
@@ -8,118 +9,134 @@ function [ distance xbin nbin confidence] = ...
     Width = video.Width;
     
     % Parameter setting
-    szDerivative = filtersize;   szConvFunc = 2*szDerivative+1;           % Derivative and Convolution kernel size
-    szSampledDataSize = szConvFunc*2+1;                                 % Sample Image Size (Temporal)
+    szDerivative = filtersize;   szConvFunc = 5;             % Derivative and Convolution kernel size
+    szSampledTemporalSize = 23;                              % Sample Size (Temporal)
+    szSampledSpatialSize = szConvFunc*2;                     % Sample Size (Spatial)   
     
-    if (nargin==3)
-        Histograms = zeros(52,floor(Height/filtersize),floor(Width/filtersize));
+    distance = cell(floor(Height/szSampledSpatialSize), floor(Width/szSampledSpatialSize));
+    confidence = zeros(floor(Height/szSampledSpatialSize),floor(Width/szSampledSpatialSize));
+    if (0==HistTrained)
+        Histograms = zeros(52,floor(Height/szSampledSpatialSize),floor(Width/szSampledSpatialSize));
+        xbin =zeros(50, floor(Height/szSampledSpatialSize), floor(Width/szSampledSpatialSize));
+        nbin = zeros(50, floor(Height/szSampledSpatialSize), floor(Width/szSampledSpatialSize));
+        
+        % Add 9/29/2011 Mahalanobis distance
+        mmu = zeros(3,floor(Height/szSampledSpatialSize),floor(Width/szSampledSpatialSize));
+        mcov = zeros(3,3,floor(Height/szSampledSpatialSize),floor(Width/szSampledSpatialSize));
+        minX = zeros(floor(Height/szSampledSpatialSize),floor(Width/szSampledSpatialSize));
+        maxX = ones(floor(Height/szSampledSpatialSize),floor(Width/szSampledSpatialSize))*Inf;
+        malpha = ones(floor(Height/szSampledSpatialSize),floor(Width/szSampledSpatialSize))*0.1;
     else
-        Histograms = varargin{1};
+        Histograms = importdata('Histograms.mat');
+        [tB tX tY] = size(Histograms);
+        mmu = importdata('mmu.mat');
+        mcov = importdata('mcov.mat');
+        xbin = permute(repmat(repmat(0:0.02:0.98, [tX,1]), [1,1,tY]), [2 1 3]);
+        nbin = Histograms(3:end,:,:);
+        minX = squeeze(Histograms(1,:,:));
+        maxX = squeeze(Histograms(2,:,:));
+        malpha = ones(floor(Height/szSampledSpatialSize),floor(Width/szSampledSpatialSize))*0.1;
     end
-    
-    distance = cell(floor(Height/filtersize), floor(Width/filtersize)); 
-    xbin =zeros(50, floor(Height/filtersize), floor(Width/filtersize));
-    nbin = zeros(50, floor(Height/filtersize), floor(Width/filtersize));
-    confidence = zeros(floor(Height/szConvFunc),floor(Width/szConvFunc)); 
-    
-    posImagShow = get(handles.imag, 'Position');
-    
-    % Add 9/29/2011 Mahalanobis distance
-    mmu = zeros(3,floor(Height/filtersize),floor(Width/filtersize)); 
-    mcov = zeros(3,3,floor(Height/filtersize),floor(Width/filtersize)); 
-    malpha = ones(floor(Height/filtersize),floor(Width/filtersize))*0.1; 
-    minX = zeros(floor(Height/filtersize),floor(Width/filtersize)); 
-    maxX = ones(floor(Height/filtersize),floor(Width/filtersize))*Inf;
             
     % Get reference structure tensor
     % ST0 = getReferenceST();
     
+    posImagShow = get(handles.imag, 'Position');
     playStopped = get(handles.stop,'Value');
     bTrai = get(handles.trai,'Value');
     bDete = get(handles.dete,'Value');
     
-    curPosition = szSampledDataSize + 1;
-    while (curPosition < numberOfFrames) && (~playStopped) && (bTrai==1 || bDete==1)
-        j = 1; start = curPosition-szSampledDataSize+1;
-        data = zeros(Height, Width, szSampledDataSize);
+    curPosition = szSampledTemporalSize + 1;
+    while (curPosition < numberOfFrames) && (~playStopped)
+        j = 1; start = curPosition-szSampledTemporalSize+1;
+        data = zeros(Height, Width, szSampledTemporalSize);
         % Get the images
         for i= start:curPosition
-            matImage = read(video,i);
-            data(:,:,j) = rgb2gray(matImage);
+            matImage = rgb2gray(read(video,i));
+            data(:,:,j) = matImage;
             j = j + 1;
         end
         newImag = imresize(matImage, [ posImagShow(4)  posImagShow(3)]);
         axes(handles.imag); imshow(newImag);
-        fprintf('Current Position:%d\n',curPosition);
+        fprintf('Current Position:%d/%d\n',curPosition,numberOfFrames);
         
-        % Compute the gradients
-        [IX, IY, IT] = partial_derivative_3D(data, szDerivative);
-        
-        % Compute the images of Ixx, Ixy, Ixt, Iyy, Iyt, Itt        
-        IXX=IX.*IX; IXY=IX.*IY; IXT=IX.*IT;
-                    IYY=IY.*IY; IYT=IY.*IT;
-                                ITT=IT.*IT;
-        
-        % Convolve spatially each of these images with a larger Gaussian
-        GH = importdata('DGKernel.mat');
-        IXX2 = convole_3D(IXX, szConvFunc, GH);
-        IXY2 = convole_3D(IXY, szConvFunc, GH);
-        IXT2 = convole_3D(IXT, szConvFunc, GH);
-        IYY2 = convole_3D(IYY, szConvFunc, GH);
-        IYT2 = convole_3D(IYT, szConvFunc, GH);
-        ITT2 = convole_3D(ITT, szConvFunc, GH);
-                
-        for posX=szConvFunc:szConvFunc:Height
-            for posY=szConvFunc:szConvFunc:Width
-                indX = floor(posX/szConvFunc); indY = floor(posY/szConvFunc);
-                % Get covariance matrix, eigenvalues and distance between them
-                Deigenvalues = zeros(szSampledDataSize,3); jEigvalues = 1;
-                for j=1:szSampledDataSize
-                    %for j=ceil(szConvFunc/2):szSampledDataSize-floor(szConvFunc/2)
-                    % Structure Tensor
-                    ST = zeros(3,3);
-                    ST(1,1) = IXX2(posX,posY,j);    ST(1,2) = IXY2(posX,posY,j);  ST(1,3) = IXT2(posX,posY,j);
-                    ST(2,1) = ST(1,2);              ST(2,2) = IYY2(posX,posY,j);  ST(2,3) = IYT2(posX,posY,j);
-                    ST(3,1) = ST(1,3);              ST(3,2) = ST(2,3);            ST(3,3) = ITT2(posX,posY,j);
-                    
-                    % Get the distance between st using generalized eigenvalue
-                    [e1,e2,e3,d1,d2,d3] = eigen_decomposition(ST);
-                    Deigenvalues(jEigvalues,:) = [d1,d2,d3];
-                    jEigvalues = jEigvalues + 1;
-                end
-                
-                if (bTrai && (~bDete))
-                    dist = getSTDistance(Deigenvalues, bTrai, indX, indY);
-                    szDist = size(dist,2);
-                    distance{indX,indY} = [distance{indX,indY} dist];
-                    [nTmp,xTmp] = hist(distance{indX,indY}, 50); 
-                    nbin(:,indX,indY) = nTmp; xbin(:,indX,indY)=xTmp;              
-                end
-                if (bDete && (~bTrai))
-                    dist = getSTDistance(Deigenvalues, bTrai, indX, indY);
-                    if sum(Histograms(:,indX,indY))==0
-                        normalizeHist(indX,indY);
+        if bTrai || bDete
+            % Compute the gradients
+            [IX, IY, IT] = partial_derivative_3D(data, szDerivative);
+            clear data;
+
+            % Compute the images of Ixx, Ixy, Ixt, Iyy, Iyt, Itt        
+            IXX=IX.*IX; IXY=IX.*IY; IXT=IX.*IT;     clear IX;
+                        IYY=IY.*IY; IYT=IY.*IT;     clear IY;
+                                    ITT=IT.*IT;     clear IT;
+
+            % Convolve spatially each of these images with a larger Gaussian
+            % GH = importdata('DGKernel.mat');
+            IXX2 = convole_3D(IXX, szConvFunc); clear IXX;
+            IXY2 = convole_3D(IXY, szConvFunc); clear IXY;
+            IXT2 = convole_3D(IXT, szConvFunc); clear IXT;
+            IYY2 = convole_3D(IYY, szConvFunc); clear IYY;
+            IYT2 = convole_3D(IYT, szConvFunc); clear IYT;
+            ITT2 = convole_3D(ITT, szConvFunc); clear ITT;
+
+            for posX=szSampledSpatialSize:szSampledSpatialSize:Height
+                for posY=szSampledSpatialSize:szSampledSpatialSize:Width
+                    indX = floor(posX/szSampledSpatialSize); indY = floor(posY/szSampledSpatialSize);
+                    % Get covariance matrix, eigenvalues and distance between them
+                    Deigenvalues = zeros(szSampledTemporalSize,3); jEigvalues = 1;
+                    for j=1:szSampledTemporalSize
+                        ST = zeros(3,3);
+                        ST(1,1) = IXX2(posX,posY,j);    ST(1,2) = IXY2(posX,posY,j);  ST(1,3) = IXT2(posX,posY,j);
+                        ST(2,1) = ST(1,2);              ST(2,2) = IYY2(posX,posY,j);  ST(2,3) = IYT2(posX,posY,j);
+                        ST(3,1) = ST(1,3);              ST(3,2) = ST(2,3);            ST(3,3) = ITT2(posX,posY,j);
+
+                        % Get the distance between st using generalized eigenvalue
+                        [~,~,~,d1,d2,d3] = eigen_decomposition(ST);
+                        Deigenvalues(jEigvalues,:) = [d1,d2,d3];
+                        jEigvalues = jEigvalues + 1;
                     end
-                    dist = bsxfun(@rdivide, bsxfun(@minus, dist,minX(indX,indY)), maxX(indX,indY)-minX(indX,indY));
-                    tempConf = getConfidence(dist,indX,indY);
-                    confidence(indX,indY)=tempConf;
+
+                    if (bTrai && (~bDete))
+                        dist = getSTDistance(Deigenvalues, bTrai, indX, indY);
+                        distance{indX,indY} = [distance{indX,indY} dist];
+                        [nTmp,xTmp] = hist(distance{indX,indY}, 50); 
+                        nbin(:,indX,indY) = nTmp; xbin(:,indX,indY)=xTmp;              
+                    end
+                    if (bDete && (~bTrai))
+                        dist = getSTDistance(Deigenvalues, bTrai, indX, indY);
+                        if sum(Histograms(:,indX,indY))==0
+                            normalizeHist(indX,indY);
+                        end
+                        dist = bsxfun(@rdivide, bsxfun(@minus, dist,minX(indX,indY)), maxX(indX,indY)-minX(indX,indY));
+                        tempConf = getConfidence(dist,indX,indY);
+                        incCoff = 0.2/(abs(confidence(indX,indY)-tempConf)+1);
+                        confidence(indX,indY)=confidence(indX,indY)*incCoff + tempConf;
+                    end
                 end
             end
-        end
-        if (bDete && (~bTrai))
-            bar(handles.hist, xbin(:,8,18), nbin(:,8,18));
-            temppp = [temppp confidence(8,18)];
-            figure(1), plot(temppp);
-            confidence = -confidence; confidence(confidence<5) = 0;
-            axes(handles.conf), imshow(confidence,[min(confidence(:)) max(confidence(:))]);
+            if (bDete && (~bTrai))
+                temppp = [temppp confidence(11,16)]; figure(1), plot(temppp);
+                confidenceShow = -confidence; 
+                %H = fspecial('average', 3); confidenceShow = imfilter(confidenceShow, H, 'replicate');
+                confidenceShow(confidenceShow<4) = 0; 
+                axes(handles.conf), imshow(confidenceShow, [min(confidenceShow(:)) max(confidenceShow(:))]);
+            end
         end
         
         playStopped = get(handles.stop,'Value');
         bTrai = get(handles.trai,'Value');
         bDete = get(handles.dete,'Value');
-        curPosition = curPosition + szSampledDataSize;
+        curPosition = curPosition + szSampledTemporalSize;
     end % while
-
+    
+    saveHistogram = get(handles.sthi,'Value');
+    if 1 == saveHistogram
+        delete('Histograms.mat'); delete('mmu.mat'); delete('mcov.mat');
+        save('Histograms.mat', 'Histograms');
+        save('mmu.mat', 'mmu');
+        save('mcov.mat', 'mcov');
+    end
+    
     % Get reference structure tesor
     function [ST0] = getReferenceST()
         ST0(1,1) = 1;                       ST0(1,2) = 0;                       ST0(1,3) = 0;
@@ -128,18 +145,18 @@ function [ distance xbin nbin confidence] = ...
         ST0 = ST0.*1000;
     end
 
-    % Get average confidence during #szSampledDataSize# frames
+    % Get average confidence during #szSampledTemporalSize# frames
     function [cf] = getConfidence(dist,indX,indY)
-        cf = 0.0;
+        cf = 0.0; szdist = size(dist,2);
         ccNN_p = Histograms(3:end, indX, indY);
         ccXX_p = xbin(:,indX,indY);
         deltaX = ccXX_p(2)-ccXX_p(1);
         
         [mu_dist sigma_dist] = getStat(ccXX_p, ccNN_p);
         
-        for jj=1:szDist
+        for jj=1:szdist
             tmpInd = find(ccXX_p>dist(jj),1);
-            if ((~isempty(tmpInd)) && (tmpInd(1)>1) && (ccNN_p(tmpInd(1)>0)))
+            if ((~isempty(tmpInd)) && (tmpInd(1)>1) && (ccNN_p(tmpInd(1))>0))
                   cf = cf + log(ccNN_p(tmpInd(1)));
             else
                 x1 = 0.0; x2 = 0.0;
@@ -162,10 +179,10 @@ function [ distance xbin nbin confidence] = ...
                 Eps2 = abs(x2-mu_dist);
                 tmpProb = 0.5*(sigma_dist^2)*abs((1/(Eps1^2)-1/(Eps2^2)))*100; %percetage%
                 cf = cf + log(tmpProb);
-                disp('====Chebysheve===='); disp(tmpProb);
+                % disp('====Chebysheve===='); disp(tmpProb);
             end            
         end
-        cf = cf./szDist;
+        cf = cf./szdist;
         
         %meanProb = mean(ccNN_p); %sum(ccNN_p/100.*ccNN_p, 2);
         %cf = (cf - meanProb)./std(ccNN_p); 
@@ -194,9 +211,6 @@ function [ distance xbin nbin confidence] = ...
         if bTrain
             mmean = mean(dvalues);
             msigma = cov(dvalues);
-            %if rcond(msigma) > 1e-10
-            %    dist_st = mahal(dvalues,dvalues)'; 
-            %end
             
             if (sum(mmu(:,indX,indY))==0) || (sum(sum(mcov(:,:,indX,indY)))==0)
                 mmu(:,indX,indY) = mmean';
@@ -229,5 +243,3 @@ function [ distance xbin nbin confidence] = ...
         Histograms(3:end,indX,indY) = tmpHistogram(2:end-1);
     end
 end
-        
-

@@ -22,7 +22,7 @@ function varargout = Overall2(varargin)
 
 % Edit the above text to modify the response to help Overall2
 
-% Last Modified by GUIDE v2.5 27-Oct-2011 17:44:14
+% Last Modified by GUIDE v2.5 28-Oct-2011 13:37:16
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -122,6 +122,7 @@ if filename
     posImag = get(handles.imag, 'Position');
     axisHeight = posImag(4); axisWidth = posImag(3);
     
+    fImag = rgb2gray(fImag);
     newImag = imresize(fImag, [axisHeight axisWidth]);
     axes(handles.imag);
     imshow(newImag);    
@@ -155,6 +156,12 @@ function stan_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
+posImg = get(handles.posi, 'Value');
+if numel(posImg)<2
+    errordlg('Please pick up a location to observe');
+    return;
+end
+
 % Read parameter setting
 videofile = get(handles.acvi,'UserData');
 duration = uint8(get(handles.dura,'Value'));
@@ -175,7 +182,7 @@ set(handles.hist, 'UserData', rstStAnalyse);
 set(handles.conf, 'UserData', confidence);
 
 %save('distance_bagleftbehind', 'distance');
-
+guidata(hObject, handles);
 
 % --- Executes on button press in stop.
 function stop_Callback(hObject, eventdata, handles)
@@ -204,6 +211,7 @@ else
     set(handles.hist, 'UserData', rstStAnalyse);
     set(handles.conf, 'UserData', confidence);
 end
+guidata(hObject, handles);
 
 % --- Executes on button press in exit.
 function exit_Callback(hObject, eventdata, handles)
@@ -294,6 +302,7 @@ hFigure = figure('Name', 'Pick up a point to observe');
 set(hFigure,'Position',[200,200,width,height]);
 imshow(fImage,'Border', 'tight');
 set(hFigure, 'WindowButtonDownFcn',{@my_pickup_Callback, handles, width, height});
+guidata(hObject, handles);
 
 
 % --- Executes on button press in trai.
@@ -318,6 +327,7 @@ if bDete
 else
     set(handles.norm, 'Enable', 'on');
 end
+guidata(hObject, handles);
 
 % --- Executes on button press in norm.
 function norm_Callback(hObject, eventdata, handles)
@@ -337,11 +347,11 @@ function anal_Callback(hObject, eventdata, handles)
 % Read parameter setting
 videofile = get(handles.acvi,'UserData');
 filtersize = get(handles.fisi,'Value');
-Histograms = get(handles.trhi,'UserData');
-% Retrieve saved data and run
+HistTrained = get(handles.trhi,'Value');
 [ distance xbin nbin confidence] = st_multiple_analyse(videofile, ...
-    filtersize, handles, Histograms);
+        filtersize, handles, HistTrained);
 disp('Analysis stopped.');
+guidata(hObject, handles);
 
 % Save updated data
 
@@ -355,15 +365,16 @@ function trhi_Callback(hObject, eventdata, handles)
 TrainSeletected = get(handles.trhi, 'Value');
 
 if TrainSeletected==1
-    [filename, pathname] = ...
-        uigetfile({'*.mat;*.txt', 'Trained histograms(*.mat,*.txt)';...
-        '*.*', 'All Files(*.*)'},...
-        'Import Trained Histograms');
-    if filename
-        Histograms = importdata([pathname filename]);
-        set(handles.trhi, 'UserData', Histograms);
-        
-        set(handles.trai, 'Value', 1);
-        set(handles.trai, 'Value', 0);
-    end
+    set(handles.trhi, 'Value', 1);
+    set(handles.trai, 'Value', 0);
 end
+guidata(hObject, handles);
+
+
+% --- Executes on button press in sthi.
+function sthi_Callback(hObject, eventdata, handles)
+% hObject    handle to sthi (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of sthi

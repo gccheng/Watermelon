@@ -2,33 +2,19 @@ function [CData] = convole_3D(data,szConv,varargin)
 % CONVOLE_3D 3D convolution.
 % data
 %   The 3 dimensional data to be convolved
-% func
-%   The kernel function of convolution. There's only one implementation
-%   now, i.e., 'Gauss'
-
     
-    if (nargin<3) 
-        % Generate 3-D Gaussian kernels along x/y/t directions;
-%         sigma = szConv/3.0;
-%         halfsize = round(szConv/2);
-%         G = zeros(szConv, szConv, szConv);
-%         for i=1:szConv
-%             for j=1:szConv
-%                 for k=1:szConv
-%                     u=[i-halfsize-1 j-halfsize-1 k-halfsize-1];
-%                     G(i,j,k)=gauss(u(2),sigma)*gauss(u(1),sigma)*gauss(u(3),sigma);
-%                 end
-%             end
-%         end
-% 
-%         % Added 2010-3-4
-%         GH = G/sqrt(sum(sum(sum(abs(G).*abs(G)))));
+if (3==nargin)
+    GH = varargin{1};
+else
+    %load DGKernel;
+    halfsize = double(round(szConv/2.0));
+    sigma = double(szConv/3.0);
+    X = double(repmat(repmat((1:szConv)',[1,szConv]),[1,1,szConv]))-ones(szConv,szConv,szConv)*halfsize;
+    Y = permute(X,[2 1 3]);
+    T = permute(X,[3 2 1]);
+    GH = 1.0/((2*pi)^(3.0/2.0)*sigma^3)*exp(-1.0/(2.0*sigma^2)*(X.^2+Y.^2+T.^2));
+end
 
-        load DGKernel;
-        %GH = fspecial('gauss', [szConv,szConv], sigma);
-    else
-        GH = varargin{1};
-    end
-
-    CData = imfilter(data,GH,'replicate','conv');
+CData = imfilter(data,GH,'replicate','conv');
+    
 end

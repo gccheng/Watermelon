@@ -8,7 +8,7 @@ function [ distance xbin nbin confidence] = ...
     Width = video.Width;
     length = video.duration;
 
-    distance = []; xbin =[]; nbin = []; confidence = []; occurProb = [];
+    distance = []; xbin =[]; nbin = []; confidence = []; occurProb = [0];
     xx = x; nn = n; dd = d; cc = conf; detect_distance = [];
     posImagShow = get(handles.imag, 'Position');   
     
@@ -22,11 +22,11 @@ function [ distance xbin nbin confidence] = ...
     end
     
     % Parameter setting
-    szDirevative = filtersize;   szWeightFunc = 11;         % Dimension of video
-    szSampledDataSize = szWeightFunc*2+1;                   % Sample Image Size (Temporal)
-    szHalfWindow = floor(szSampledDataSize/2);
+    szDirevative = filtersize;   szWeightFunc = 5;          % Dimension of video
+    szSampledDataSize = 23;                                 % Sample Image Size (Temporal)
+    szHalfWindow = ceil(szWeightFunc/2);                    % Sample Image Size (Spatial)
     posImg=get(handles.posi,'Value'); 
-    posX=posImg(1); posY=posImg(2); posT = szWeightFunc;    % The postion to observe
+    posX=posImg(1); posY=posImg(2);                         % The postion to observe
 
     % Image sample region
     topX = max(1, posX-szHalfWindow);
@@ -53,7 +53,6 @@ function [ distance xbin nbin confidence] = ...
     end
 
     data = zeros(spanX, spanY, szSampledDataSize);
-    PlayerControl = get(handles.figure1, 'UserData');
 
     playStopped = get(handles.stop,'Value');
     bTrai = get(handles.trai,'Value');
@@ -70,8 +69,8 @@ function [ distance xbin nbin confidence] = ...
                 data(:,:,j) = matImage(topX:bottomX, leftY:rightY);
                 j = j + 1;
             end
-            newImag = imresize(read(video,curPosition), [ posImagShow(4)  posImagShow(3)]);
-            axes(handles.imag); imshow(newImag);    
+            matImage = imresize(matImage, [ posImagShow(4)  posImagShow(3)]);
+            axes(handles.imag); imshow(matImage);    
             
             if ( (bTrai==1) || (bDete==1))
                 % Compute the gradients
@@ -162,12 +161,13 @@ function [ distance xbin nbin confidence] = ...
                 detect_distance = [detect_distance dist];
                 tempConf = getConfidence(dist);
                 cc = [cc tempConf]; confidence = cc;
-                dConf = 1.0;
+                dConf = 0.1/(abs(occurProb(end)-tempConf)+1);
                 %anomaly accumulation penalty (Commented out 10/6/2011)
                 %{if size(confidence,2)>=5
                 %    dConf = sum(abs(confidence(end-3:end-1) - confidence(end-4:end-2)),2)/3;
                 %end
-                occurProb = [occurProb tempConf./(dConf+0.01)];
+                %occurProb = [occurProb tempConf./(dConf+0.01)];
+                occurProb = [occurProb tempConf+dConf*occurProb(end)];
                 plot(handles.conf, 1:size(occurProb,2), occurProb);
                 xlabel(handles.conf, 'Window Frame #'); ylabel(handles.conf, 'Occurrence Rate');  
                 
@@ -296,7 +296,7 @@ function [ distance xbin nbin confidence] = ...
     
     % Get the statistical mean and standard deviation of the distances
     function [mu,sigma] = getStat(xbin, nbin)
-        xMid = xbin+ones(1,size(xbin,2))*(xbin(2)-xbin(1));
+        xMid = xbin+ones(1,size(xbin,2))*(xbin(2)-xbin(1))/2;
         dataStat = [];
         for iStat=1:size(xbin,2)
             if nbin(iStat)>0
