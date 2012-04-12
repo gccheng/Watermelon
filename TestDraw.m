@@ -76,8 +76,28 @@ close all;
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-Eigenvalues = importdata('Eigenvalues.txt','\t');
-d1 = Eigenvalues(:,1)'; d2 = Eigenvalues(:,2)'; d3 = Eigenvalues(:,3)';
+% Eigenvalues = importdata('Eigenvalues.txt','\t');
+% d1 = Eigenvalues(:,1)'; d2 = Eigenvalues(:,2)'; d3 = Eigenvalues(:,3)';
+% 
+% % figure, hist(d1);
+% % figure, hist(d2);
+% % figure, hist(d3);
+% 
+% % d1 = zscore(d1);
+% % d2 = zscore(d2);
+% % d3 = zscore(d3);
+% figure, plot(d1);
+% figure, plot(d2);
+% figure, plot(d3);
+% figure, plot3(d1,d2,d3,'.'); axis equal
+% xlabel('d1');
+% ylabel('d2');
+% zlabel('d3');
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Anglevalues = importdata('Anglevalues.txt','\t');
+d1 = Anglevalues(:,1)'; d2 = Anglevalues(:,2)'; 
+hs1 = uint16(size(d1,2)*0.6); hs2 = uint16(size(d2,2)*0.6);
 
 % figure, hist(d1);
 % figure, hist(d2);
@@ -86,14 +106,20 @@ d1 = Eigenvalues(:,1)'; d2 = Eigenvalues(:,2)'; d3 = Eigenvalues(:,3)';
 % d1 = zscore(d1);
 % d2 = zscore(d2);
 % d3 = zscore(d3);
-figure, plot(d1);
-figure, plot(d2);
-figure, plot(d3);
-figure, plot3(d1,d2,d3,'.'); axis equal
-xlabel('d1');
-ylabel('d2');
-zlabel('d3');
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% figure, plot(d1); title('theta');
+% figure, plot(d2); title('phi');
+
+figure, plot(d1(1:hs1),d2(1:hs2),'.'); axis equal;
+xlabel('theta'); ylabel('phi'); title('First Half');
+
+figure, plot(d1(hs1:end),d2(hs2:end),'.'); axis equal
+xlabel('theta'); ylabel('phi'); title('Second Half');
+
+% figure, hist(d1(1:hs1), 50); title('theta-1');
+% figure, hist(d1(hs1:end), 50); title('theta-2');
+% 
+% figure, hist(d1(1:hs2), 50); title('phi-1');
+% figure, hist(d1(hs2:end), 50); title('phi-2');
 
 end

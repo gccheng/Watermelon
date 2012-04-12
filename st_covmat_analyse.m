@@ -20,6 +20,11 @@ function [ distance xbin nbin confidence] = ...
         disp('Create log file failed!\n');
         return;
     end
+    fid_agnles = fopen('Anglevalues.txt','wt+');
+    if fid_agnles == 0
+        disp('Create log file failed!\n');
+        return;
+    end
     
     % Parameter setting
     szDirevative = filtersize;   szWeightFunc = 5;          % Dimension of video
@@ -90,7 +95,7 @@ function [ distance xbin nbin confidence] = ...
                 ITT2 = convole_3D(ITT, szWeightFunc);
 
                 % Get covariance matrix, eigenvalues and distance between them
-                Deigenvalues = zeros(szSampledDataSize,3); jEigvalues = 1;
+                Deigenvalues = zeros(szSampledDataSize,5); jEigvalues = 1;
                 for j=1:szSampledDataSize 
                 %for j=ceil(szWeightFunc/2):szSampledDataSize-floor(szWeightFunc/2)
                         % Structure Tensor
@@ -101,10 +106,14 @@ function [ distance xbin nbin confidence] = ...
 
                         % Get the distance between st using generalized eigenvalue
                         [e1,e2,e3,d1,d2,d3] = eigen_decomposition(ST);%/ST0);
-                        Deigenvalues(jEigvalues,:) = [d1,d2,d3];
+                        
+                        [e_theta e_rho e_z] = cart2pol(e3(1), e3(2), e3(3));
+                        e_phi = atan(e_z/e_rho);
+                        Deigenvalues(jEigvalues,:) = [d1,d2,d3, e_theta, e_phi];
                         jEigvalues = jEigvalues + 1;
                         % dist(iFrame) = sqrt(log(d1)*log(d1)+log(d2)*log(d2)+log(d3)*log(d3));
                         fprintf(fid_results, '%.8f\t%.8f\t%.8f\n', d1, d2, d3);
+                        fprintf(fid_agnles, '%.2f\t%.2f\n', e_theta, e_phi);
                 end
             end
             
@@ -169,7 +178,14 @@ function [ distance xbin nbin confidence] = ...
                 %occurProb = [occurProb tempConf./(dConf+0.01)];
                 occurProb = [occurProb tempConf+dConf*occurProb(end)];
                 plot(handles.conf, 1:size(occurProb,2), occurProb);
-                xlabel(handles.conf, 'Window Frame #'); ylabel(handles.conf, 'Occurrence Rate');  
+                xlabel(handles.conf, 'Frame #'); ylabel(handles.conf, 'Occurrence Rate');  
+                
+                figure(11);
+                plot(1:size(occurProb,2), occurProb);
+                
+                occurProb2 = occurProb < -3;
+                figure(12);
+                plot(1:size(occurProb2,2), occurProb2);
                 
                 figure(10);
                 subplot(3,1,1), plot(detect_distance);        title('dist');
@@ -187,6 +203,10 @@ function [ distance xbin nbin confidence] = ...
         bDete = get(handles.dete,'Value');
         curPosition = curPosition + szSampledDataSize;
     end
+    
+    [f,xi] = ksdensity(distance);
+    figure, plot(xi, f);
+    
         
     fclose(fid_results);
     

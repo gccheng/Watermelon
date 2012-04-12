@@ -11,7 +11,7 @@ function [ distance xbin nbin confidence] = ...
     % Parameter setting
     szDerivative = filtersize;   szConvFunc = 5;             % Derivative and Convolution kernel size
     szSampledTemporalSize = 23;                              % Sample Size (Temporal)
-    szSampledSpatialSize = szConvFunc*2;                     % Sample Size (Spatial)   
+    szSampledSpatialSize = szConvFunc*2+1;                   % Sample Size (Spatial)   
     
     distance = cell(floor(Height/szSampledSpatialSize), floor(Width/szSampledSpatialSize));
     confidence = zeros(floor(Height/szSampledSpatialSize),floor(Width/szSampledSpatialSize));
@@ -31,7 +31,7 @@ function [ distance xbin nbin confidence] = ...
         [tB tX tY] = size(Histograms);
         mmu = importdata('mmu.mat');
         mcov = importdata('mcov.mat');
-        xbin = permute(repmat(repmat(0:0.02:0.98, [tX,1]), [1,1,tY]), [2 1 3]);
+        xbin = permute(repmat(repmat(0:0.1:0.9, [tX,1]), [1,1,tY]), [2 1 3]);
         nbin = Histograms(3:end,:,:);
         minX = squeeze(Histograms(1,:,:));
         maxX = squeeze(Histograms(2,:,:));
@@ -47,7 +47,8 @@ function [ distance xbin nbin confidence] = ...
     bDete = get(handles.dete,'Value');
     
     curPosition = szSampledTemporalSize + 1;
-    while (curPosition < numberOfFrames) && (~playStopped)
+    % && (~playStopped)
+    while ((curPosition < numberOfFrames))
         j = 1; start = curPosition-szSampledTemporalSize+1;
         data = zeros(Height, Width, szSampledTemporalSize);
         % Get the images
@@ -115,10 +116,11 @@ function [ distance xbin nbin confidence] = ...
                 end
             end
             if (bDete && (~bTrai))
-                temppp = [temppp confidence(11,16)]; figure(1), plot(temppp);
+                %temppp = [temppp confidence(11,16)]; figure(1), plot(temppp);
                 confidenceShow = -confidence; 
                 %H = fspecial('average', 3); confidenceShow = imfilter(confidenceShow, H, 'replicate');
-                confidenceShow(confidenceShow<4) = 0; 
+                confidenceShow(confidenceShow<3.5) = 0; 
+                %confidenceShow(confidenceShow>=3) = 1; 
                 axes(handles.conf), imshow(confidenceShow, [min(confidenceShow(:)) max(confidenceShow(:))]);
             end
         end
@@ -129,9 +131,12 @@ function [ distance xbin nbin confidence] = ...
         curPosition = curPosition + szSampledTemporalSize;
     end % while
     
+    
+    
     saveHistogram = get(handles.sthi,'Value');
     if 1 == saveHistogram
         delete('Histograms.mat'); delete('mmu.mat'); delete('mcov.mat');
+        %save('distance.mat', 'distance');
         save('Histograms.mat', 'Histograms');
         save('mmu.mat', 'mmu');
         save('mcov.mat', 'mcov');
@@ -163,7 +168,7 @@ function [ distance xbin nbin confidence] = ...
                 if dist(jj)<xbin(1,indX,indY)
                     x1 = xbin(1,indX,indY) - deltaX.*(floor((xbin(1,indX,indY)-dist(jj))/deltaX)+1);
                     x2 = xbin(1,indX,indY) - deltaX.* floor((xbin(1,indX,indY)-dist(jj))/deltaX);
-                elseif dist(jj)>xbin(end)
+                elseif dist(jj)>xbin(end,indX,indY)
                     x1 = xbin(end,indX,indY) + deltaX.* floor((dist(jj)-xbin(end,indX,indY))/deltaX);
                     x2 = xbin(end,indX,indY) + deltaX.*(floor((dist(jj)-xbin(end,indX,indY))/deltaX)+1);
                 else % Within [minX, maxX] but probability is zero.

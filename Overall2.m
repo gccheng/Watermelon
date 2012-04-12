@@ -22,7 +22,7 @@ function varargout = Overall2(varargin)
 
 % Edit the above text to modify the response to help Overall2
 
-% Last Modified by GUIDE v2.5 28-Oct-2011 13:37:16
+% Last Modified by GUIDE v2.5 02-Feb-2012 16:10:54
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -213,15 +213,20 @@ else
 end
 guidata(hObject, handles);
 
-% --- Executes on button press in exit.
-function exit_Callback(hObject, eventdata, handles)
-% hObject    handle to exit (see GCBO)
+% --- Executes on button press in vali.
+function vali_Callback(hObject, eventdata, handles)
+% hObject    handle to vali (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-set(handles.stop, 'Value', 1);
-pause(2);
-close
+% Read parameter setting
+videofile = get(handles.acvi,'UserData');
+filtersize = get(handles.fisi,'Value');
+HistTrained = get(handles.trhi,'Value');
+[ distance xbin nbin confidence] = st_multiple_validate(videofile, ...
+        filtersize, handles, HistTrained);
+disp('Validation stopped.');
+guidata(hObject, handles);
 
 
 function fisi_Callback(hObject, eventdata, handles)
@@ -378,3 +383,12 @@ function sthi_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 % Hint: get(hObject,'Value') returns toggle state of sthi
+
+
+% --- Executes on button press in btn_validate.
+function btn_validate_Callback(hObject, eventdata, handles)
+% hObject    handle to btn_validate (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+Validation;

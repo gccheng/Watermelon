@@ -14,13 +14,23 @@ function [gx,gy,gt]=gaussgradient(IM,size,sigma)
     halfsize = double(round(size/2));
     sigma = double(sigma);
 
+%     X = double(repmat(repmat((1:size)',[1,size]),[1,1,size]))-ones(size,size,size)*halfsize;
+%     Y = permute(X,[2 1 3]);
+%     T = permute(X,[3 2 1]);
+%     hx = -exp(-1.0/(2.0*sigma^2)*(X.^2+Y.^2+T.^2)).*X;
+%     hy = -exp(-1.0/(2.0*sigma^2)*(X.^2+Y.^2+T.^2)).*Y;
+%     ht = -exp(-1.0/(2.0*sigma^2)*(X.^2+Y.^2+T.^2)).*T;
+
     X = double(repmat(repmat((1:size)',[1,size]),[1,1,size]))-ones(size,size,size)*halfsize;
-    Y = permute(X,[2 1 3]);
-    T = permute(X,[3 2 1]);
-    hx = -exp(-1.0/(2.0*sigma^2)*(X.^2+Y.^2+T.^2)).*X;
-    hy = -exp(-1.0/(2.0*sigma^2)*(X.^2+Y.^2+T.^2)).*Y;
-    ht = -exp(-1.0/(2.0*sigma^2)*(X.^2+Y.^2+T.^2)).*T;
+    hx = -exp(-1.0/(2.0*sigma^2)*(X.^2)).*X;
+    hy = permute(hx,[2 1 3]);
+    ht = permute(hx,[3 2 1]);
     
+%     hSobel = fspecial('sobel');
+%     hx = repmat(hSobel, [1 1 3]);
+%     hy = repmat(hSobel', [1 1 3]);
+%     ht = permute(hx, [3 2 1]);
+
     % 3D filtering
     gx = imfilter(IM,hx,'replicate','conv');
     gy = imfilter(IM,hy,'replicate','conv');
