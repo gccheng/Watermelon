@@ -22,7 +22,7 @@ function varargout = Validation(varargin)
 
 % Edit the above text to modify the response to help Validation
 
-% Last Modified by GUIDE v2.5 27-Feb-2012 13:45:51
+% Last Modified by GUIDE v2.5 13-Apr-2012 10:48:20
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -219,11 +219,17 @@ else
     HistTrained = 0;
     warndlg('Model not trained!', 'warning', 'modal');
     return;
-end
+end;
 
-[ distance xbin nbin confidence] = st_multiple_validate(videodir, ...
-        filtersize, handles, HistTrained);
-    
+fid = fopen('Result_Caviar_4.txt', 'a+');
+fprintf(fid, 'Theta\t Precision\t Recall\t Hits\t TPR\t FPR\n');
+fclose(fid);
+
+for theta=8:4:92
+    [ distance xbin nbin confidence] = st_multiple_validate(videodir, ...
+        filtersize, handles, HistTrained, theta);
+    fprintf('\n');
+end;
 
 
 % --- Executes on button press in stop.
@@ -283,3 +289,25 @@ videodir = get(handles.eb_trainvideo, 'String');
 filtersize = 3;
 
 st_multiple_validate_training(videodir, filtersize, handles, 0);
+
+
+% --- Executes on button press in btn_trained.
+function btn_trained_Callback(hObject, eventdata, handles)
+% hObject    handle to btn_trained (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of btn_trained
+IsChecked = get(hObject, 'Value');
+if (1==IsChecked)  
+    if exist('Histograms.mat','file') && exist('mcov.mat','file') && exist('mmu.mat','file')
+        set(handles.btn_train, 'Enable', 'inactive');
+        set(handles.btn_train, 'ForegroundColor',[0.5 0.5 0.5]);
+    else
+        warndlg('Model not trained!', 'warning', 'modal');
+        return;
+    end
+else
+    set(handles.btn_train, 'Enable', 'on');
+    set(handles.btn_train, 'ForegroundColor',[0 0 0]);
+end

@@ -219,7 +219,11 @@ function [ distance xbin nbin confidence] = st_multiple_validate_training(videod
         for pos=0:N-1
             %sFile = sprintf('%03d.tif', curPosition+pos);
             sFile = picturelist{curPosition+pos};
-            qFrames(:,:,szSampledTemporalSize-N+1+pos) = imread(sFile);
+            pTmp = imread(sFile);
+            if ndims(pTmp)==3
+                pTmp = rgb2gray(pTmp);
+            end;
+            qFrames(:,:,szSampledTemporalSize-N+1+pos) = pTmp;
         end
     end
 

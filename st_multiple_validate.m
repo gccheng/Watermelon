@@ -1,17 +1,22 @@
 function [ distance xbin nbin confidence] = st_multiple_validate(videodir, ...
-        filtersize, handles, HistTrained)
+        filtersize, handles, HistTrained, theta)
     
     cla(handles.precision_recall);
     P = []; % precision
     R = []; % recall
+    HITS = 0; % hits
+    TP = 0;
+    FP = 0;
        
     picturelist = get_files(videodir);
     gtlist = get_files(get(handles.eb_groundtruth, 'String'));
     
+    [TotalPositive, TotalNegative] = computePN();
+    
     % Parameter setting
     szDerivative = filtersize;   szConvFunc = 5;             % Derivative and Convolution kernel size
     szSampledTemporalSize = 23;                              % Sample Size (Temporal)
-    szSampledSpatialSize = szConvFunc+1;                   % Sample Size (Spatial)   
+    szSampledSpatialSize = 2*szConvFunc+1;                   % Sample Size (Spatial)   
     %abbreviation
     ts = szSampledTemporalSize;
     ss = szSampledSpatialSize;
@@ -53,7 +58,8 @@ function [ distance xbin nbin confidence] = st_multiple_validate(videodir, ...
     
     curPosition = 1;
     flag = 1;
-    while (curPosition+1 < numberOfFrames) && (playStopped ~= 1.0)       
+    %fprintf('Current Position(%d): ',numberOfFrames);
+    while ( (curPosition+1 < numberOfFrames) && (playStopped ~= 1.0) )
         if (1==flag) % first szSampledTemporalSize frames
             % load frames and show current frame
             readNFrames(curPosition, szSampledTemporalSize);
@@ -151,9 +157,9 @@ function [ distance xbin nbin confidence] = st_multiple_validate(videodir, ...
             
         end
         
-        newImage = squeeze(qFrames(:,:,1));
-        axes(handles.imag); imshow(newImage, [min(newImage(:))  max(newImage(:))]);
-        fprintf('Current Position:%d/%d\n',curPosition,numberOfFrames);
+        %newImage = squeeze(qFrames(:,:,1));
+        %axes(handles.imag); imshow(newImage, [min(newImage(:))  max(newImage(:))]);
+        %fprintf('%d ',curPosition);
         
         for indX=1:floor(Height/szSampledSpatialSize)
             for indY=1:floor(Width/szSampledSpatialSize)
@@ -167,63 +173,132 @@ function [ distance xbin nbin confidence] = st_multiple_validate(videodir, ...
             end
         end
         
-        theta = 3.5;
+        %theta = 30.0;
         confidenceShow = -confidence;
         %H = fspecial('average', 3); confidenceShow = imfilter(confidenceShow, H, 'replicate');
-        confidenceShow(confidenceShow<theta) = 0;
-        confidenceShow(confidenceShow>=theta) = 1;
-        if(sum(confidenceShow(:))<2)
+        %confidenceShow(confidenceShow<theta) = 0;
+        %confidenceShow(confidenceShow>=theta) = 1;
+        %if(sum(confidenceShow(:))<2)
+        %    confidenceShow = zeros(size(confidenceShow));
+        %end; 
+                
+        confidenceShow = imresize(confidenceShow,[Height Width]);
+        %confidenceShow(confidenceShow>0.4) = 1;
+        %confidenceShow(confidenceShow<=0.4) = 0;
+        confidenceShow(confidenceShow<theta/5) = 0;
+        confidenceShow(confidenceShow>=theta/5) = 1;
+        if(sum(confidenceShow(:))<5)
             confidenceShow = zeros(size(confidenceShow));
-        end;
+        end;  
         
-        confidenceShow = imresize(confidenceShow,[Height Width],'bilinear');
-        confidenceShow(confidenceShow>0.7) = 1;
-        confidenceShow(confidenceShow<=0.7) = 0;
-        
-        figure(1);
+        axes(handles.roc);
         imshow(confidenceShow, [min(confidenceShow(:)) max(confidenceShow(:))]);
-        %axes(handles.precision_recall); imshow(confidenceShow, [min(confidenceShow(:)) max(confidenceShow(:))]);
+        
+        %detectfile = sprintf('./Videos/Validation/BagLeft/CAVIAR-INRIA/detect/%04d.tif', curPosition);
+        %imwrite(confidenceShow,detectfile, 'tif');
         
         [p, r] = computePrecisionRecall(uint8(confidenceShow), curPosition);
         P = [P, p];
         R = [R, r];
         
-        axes(handles.roc); plot(P, R, '+');
+        %axes(handles.precision_recall); plot(P, R, '+');
        
         playStopped = get(handles.stop,'Value');
         
     end % while
+    %fprintf('\n');
     
-    disp(mean(P));
-    disp(mean(R));
+    fid = fopen('Result_Caviar_4.txt', 'a+');
+    fprintf(fid, '%f\t', theta);
+    fprintf(fid, '%f\t', mean(P));
+    fprintf(fid, '%f\t', mean(R));
+    fprintf(fid, '%f\t', HITS/numberOfFrames);
+    fprintf(fid, '%f\t', TP/TotalPositive);
+    fprintf(fid, '%f\n', FP/TotalNegative);
+    fclose(fid);
+    
+    fprintf('Theta=%f\n', theta);
+    fprintf('P=%f\t', mean(P));
+    fprintf('R=%f\n', mean(R));
+    fprintf('Hits=%f\n', HITS/numberOfFrames);
+    fprintf('TPR=%f\t', TP/TotalPositive);
+    fprintf('FPR=%f\n', FP/TotalNegative);
+    
+    %save('P.mat', 'P');
+    %save('R.mat', 'R');
     
     function [precision, recall] = computePrecisionRecall(anomaly_detect, pos)   
         % get the corresponding groundtruth
-        prec = zeros(1, szSampledTemporalSize);
-        rec = zeros(1, szSampledTemporalSize);
-        for i=1:szSampledTemporalSize
-            gt = imread(gtlist{pos-i});
-            gt(gt<theta) = 0;
-            gt(gt>=theta) = 1;
+%         prec = zeros(1, szSampledTemporalSize);
+%         rec = zeros(1, szSampledTemporalSize);
+        
+        detectval = sum(anomaly_detect(:));
+%         for i=1:szSampledTemporalSize
+%             gt = imread(gtlist{pos-i});
+%             %gt = imresize(gt, size(anomaly_detect));
+%             if ndims(gt)>=3
+%                 gt = rgb2gray(gt(:,:,1:3));
+%             end;
+%             gt(gt<128) = 0;
+%             gt(gt>=128) = 1;
+% 
+%             % compare and compute
+%             umat = anomaly_detect.*gt;
+%             uval = sum(umat(:));
+%             truthval = sum(gt(:));
+%             prec(szSampledTemporalSize-i+1) = (uval+0.01)/(detectval+0.01);
+%             rec(szSampledTemporalSize-i+1) = (uval+0.01)/(truthval+0.01);
+%         end
+%            
+%         [precision,ip] = max(prec(:));
+%         [recall,ir] = max(rec(:));
+%         
+%         if (recall>=0.4)
+%             HITS = HITS + 1;
+%             %if (sum(gt(:))>10)
+%             %    TP = TP + 1;
+%             %else
+%             %    FP = FP + 1;
+%             %end;
+%         end;
+%         
+%         gt = imread(gtlist{pos-(szSampledTemporalSize+1-ip)});
+%         if ndims(gt)>=3
+%                 gt = rgb2gray(gt(:,:,1:3));
+%         end;
+%         gt(gt<128) = 0; gt(gt>=128) = 1;
+%         if ((sum(anomaly_detect(:))>10) && (sum(gt(:))>=10))
+%             TP = TP + 1;
+%         elseif ((sum(anomaly_detect(:))>10) && (sum(gt(:))<10))
+%             FP = FP + 1;
+%         end;
+%         %gt = imread(gtlist{pos-(szSampledTemporalSize+1-ip)});
+%         %if ndims(gt)>=3
+%         %        gt = rgb2gray(gt(:,:,1:3));
+%         %end;
+%         %gt(gt<128) = 0; gt(gt>=128) = 1;
+%         %figure(3);  imshow(gt, [min(gt(:)) max(gt(:))]);    
+        
+        gt = imread(gtlist{pos-23});
+        if ndims(gt)>=3
+            gt = rgb2gray(gt(:,:,1:3));
+        end;
+        gt(gt<128) = 0; gt(gt>=128) = 1;
+        umat = anomaly_detect.*gt;
+        uval = sum(umat(:));
+        truthval = sum(gt(:));
+        precision = (uval+0.01)/(detectval+0.01);
+        recall = (uval+0.01)/(truthval+0.01);
 
-            % compare and compute
-            umat = anomaly_detect.*gt;
-            uval = sum(umat(:));
-            truthval = sum(gt(:));
-            detectval = sum(anomaly_detect(:));
-            prec(szSampledTemporalSize-i+1) = (uval+0.01)/(detectval+0.01);
-            rec(szSampledTemporalSize-i+1) = (uval+0.01)/(truthval+0.01);
-        end
+        if ((sum(anomaly_detect(:))>4) && (sum(gt(:))>=10))
+            TP = TP + 1;
+        elseif ((sum(anomaly_detect(:))>4) && (sum(gt(:))<10))
+            FP = FP + 1;
+        end;
         
-        gt = imread(gtlist{pos});
-        gt(gt<theta) = 0; gt(gt>=theta) = 1;
-        figure(11);  imshow(gt, [min(gt(:)) max(gt(:))]);
-        
-        axes(handles.precision_recall);
-        plot(prec, 'o');
-        
-        precision = max(prec(:));
-        recall = max(rec(:));
+        if (recall>=0.4)
+            HITS = HITS + 1;
+        end;
     end
     
     % Get reference structure tesor
@@ -343,7 +418,12 @@ function [ distance xbin nbin confidence] = st_multiple_validate(videodir, ...
         end;
         for pos=0:N-1
             sFile = picturelist{curPosition+pos};
-            qFrames(:,:,szSampledTemporalSize-N+1+pos) = rgb2gray(imread(sFile));
+            readImage = imread(sFile);
+            if (ndims(readImage)==3)
+                qFrames(:,:,szSampledTemporalSize-N+1+pos) = rgb2gray(readImage);
+            else
+               qFrames(:,:,szSampledTemporalSize-N+1+pos) = readImage; 
+            end
         end
     end
 
@@ -391,6 +471,25 @@ function [ distance xbin nbin confidence] = st_multiple_validate(videodir, ...
             isdir = listing(i).isdir;
             if ((~isdir) && (name(1)~='.'))
                 files = [files; [folder '/', name]];
+            end;
+        end;
+    end
+
+    function [TP, TN] = computePN()
+        TP = 0;
+        TN = 0;
+        TotalGT = size(gtlist,1);
+        for i=1:TotalGT
+            gt = imread(gtlist{i});
+            if ndims(gt)>=3
+                gt = rgb2gray(gt(:,:,1:3));
+            end;
+            gt(gt<128) = 0;
+            gt(gt>=128) = 1;
+            if (sum(gt(:))<10)
+                TN = TN + 1;
+            else
+                TP = TP + 1;
             end;
         end;
     end
